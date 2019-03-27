@@ -1,121 +1,111 @@
-#include <vtkSmartPointer.h>
-#include <vtkSphereSource.h>
-#include <vtkPolyDataMapper.h>
-#include <vtkActor.h>
-#include <vtkRenderWindow.h>
-#include <vtkRenderer.h>
-#include <vtkRenderWindowInteractor.h>
-#include <vtkProgrammableFilter.h>
-#include <vtkCallbackCommand.h>
-
-
 /*
 *   Example code using a timer to update a render object.
 *
 *   4D-CT Pipeline: similar to the timer/animation example, but first process the 80 volumes (filter, threshold, Marching cubes), 
 *                   then save them to STL files. Then read in these files and loop through them (update mappers and actors with new inputs for each volume).
 */
+#include "helperFunctions.hxx"
 
-void TimerCallbackFunction ( vtkObject* caller, long unsigned int eventId, void* clientData, void* callData );
-
-// Globals
-unsigned int counter2 = 0;
-
-void AdjustPoints2(void* arguments)
+int main(int argc, char* argv[])
 {
-  std::cout << "AdjustPoints2" << std::endl;
-  vtkProgrammableFilter* programmableFilter =
-      static_cast<vtkProgrammableFilter*>(arguments);
-
-  vtkPoints* inPts = programmableFilter->GetPolyDataInput()->GetPoints();
-  vtkIdType numPts = inPts->GetNumberOfPoints();
-  vtkSmartPointer<vtkPoints> newPts =
-      vtkSmartPointer<vtkPoints>::New();
-  newPts->SetNumberOfPoints(numPts);
-
-  for(vtkIdType i = 0; i < numPts; i++)
+  /***************************************************************
+  *   Check input arguements
+  ***************************************************************/
+  if ( argc != 2 )
   {
-    double p[3];
-    inPts->GetPoint(i, p);
-    newPts->SetPoint(i, p);
+      std::cout << "ERROR: Incorrect program usage. \n";
+      std::cout << "Correct usage: \n";
+      std::cout << argv[0] << " <DICOM_Folder_Directory> \n";
+      return EXIT_FAILURE;
   }
 
-  double p0[3];
-  inPts->GetPoint(0, p0);
-  p0[2] = p0[2] + counter2 * 0.1;
-  newPts->SetPoint(0, p0);
+  vtkSmartPointer<vtkDICOMImageReader> dicomReader = vtkSmartPointer<vtkDICOMImageReader>::New();;
 
-  programmableFilter->GetPolyDataOutput()->CopyStructure(programmableFilter->GetPolyDataInput());
-  programmableFilter->GetPolyDataOutput()->SetPoints(newPts);
-}
+  vtkSmartPointer<vtkImageData> volume        = vtkSmartPointer<vtkImageData>::New();
+  vtkSmartPointer<vtkImageData> gaussianImage = vtkSmartPointer<vtkImageData>::New();
+  vtkSmartPointer<vtkImageData> segImage      = vtkSmartPointer<vtkImageData>::New();
 
-int main(int, char *[])
-{
-  // Create a sphere
-  vtkSmartPointer<vtkSphereSource> sphereSource =
-    vtkSmartPointer<vtkSphereSource>::New();
-  sphereSource->Update();
+  dicomReader->SetDirectoryName( argv[1] );
+  dicomReader->Update();
 
-  vtkSmartPointer<vtkProgrammableFilter> programmableFilter =
-    vtkSmartPointer<vtkProgrammableFilter>::New();
-  programmableFilter->SetInputConnection(sphereSource->GetOutputPort());
+  volume = dicomReader->GetOutput();
 
-  programmableFilter->SetExecuteMethod(AdjustPoints2, programmableFilter);
+  /***************************************************************
+  *   Apply a Gaussian and median filter to the image
+  ***************************************************************/
+  std::cout << "\n**Filtering the input image** \n";
 
-  // Create a mapper and actor
-  vtkSmartPointer<vtkPolyDataMapper> mapper =
-    vtkSmartPointer<vtkPolyDataMapper>::New();
-  mapper->SetInputConnection(programmableFilter->GetOutputPort());
-  vtkSmartPointer<vtkActor> actor =
-    vtkSmartPointer<vtkActor>::New();
-  actor->SetMapper(mapper);
+  std::cout << "Applying a Gaussian filter with std = 1.0...";
+  vtkSmartPointer<vtkImageGaussianSmooth> gaussianSmoothFilter = vtkSmartPointer<vtkImageGaussianSmooth>::New();
+  gaussianSmoothFilter->SetInputData( volume );
+  gaussianSmoothFilter->SetStandardDeviation( 1.0 );
+  gaussianSmoothFilter->SetRadiusFactors( 1.0, 1.0, 1.0 );
+  gaussianSmoothFilter->SetDimensionality( 3 );
+  gaussianSmoothFilter->Update();
 
-  // Create a renderer, render window, and interactor
-  vtkSmartPointer<vtkRenderer> renderer =
-    vtkSmartPointer<vtkRenderer>::New();
-  vtkSmartPointer<vtkRenderWindow> renderWindow =
-    vtkSmartPointer<vtkRenderWindow>::New();
-  renderWindow->AddRenderer(renderer);
-  vtkSmartPointer<vtkRenderWindowInteractor> renderWindowInteractor =
-    vtkSmartPointer<vtkRenderWindowInteractor>::New();
-  renderWindowInteractor->SetRenderWindow(renderWindow);
+  gaussianImage = gaussianSmoothFilter->GetOutput();
+  std::cout << "Done! \n";
 
-  // Initialize must be called prior to creating timer events.
-  renderWindowInteractor->Initialize();
-  renderWindowInteractor->CreateRepeatingTimer(500);
+  /***************************************************************
+  *   Segment the input image
+  ***************************************************************/
+  // Perform segmentation to extract bone
+  int lowerThresh = 0, upperThresh = 0;
+  double isoValue = 0.0;
 
-  vtkSmartPointer<vtkCallbackCommand> timerCallback =
-    vtkSmartPointer<vtkCallbackCommand>::New();
-  timerCallback->SetCallback ( TimerCallbackFunction );
-  timerCallback->SetClientData(programmableFilter);
+  // Get the threshold and isovalue parameters from the user
+  std::cout << "Performing image segmentation \n";
+  std::cout << "Please enter upper and lower threshold values: \n";
+  std::cout << "Lower Threshold = ";
+  std::cin >> lowerThresh;
+  std::cout << "Upper Threshold = ";
+  std::cin >> upperThresh;
 
-  renderWindowInteractor->AddObserver ( vtkCommand::TimerEvent, timerCallback );
+  std::cout << "Please enter the desired isovalue for the Marching Cubes algortihm: ";
+  std::cin >> isoValue;
 
-  // Add the actor to the scene
-  renderer->AddActor(actor);
-  renderer->SetBackground(1,1,1); // Background color white
+  // Apply the global threshold
+  vtkSmartPointer<vtkImageThreshold> globalThresh = vtkSmartPointer<vtkImageThreshold>::New();
+  globalThresh->SetInputData( gaussianImage );
+  globalThresh->ThresholdBetween( lowerThresh, upperThresh );
+  globalThresh->ReplaceInOn();
+  globalThresh->SetInValue( isoValue + 1 );
+  globalThresh->ReplaceOutOn();
+  globalThresh->SetOutValue(0);
+  globalThresh->SetOutputScalarTypeToFloat();
+  globalThresh->Update();
 
-  // Render and interact
+  segImage = globalThresh->GetOutput();
+
+  // Use the Marching cubes algorithm to generate the surface
+  std::cout << "Generating surface using Marching cubes \n";
+
+  vtkSmartPointer<vtkMarchingCubes> surface = vtkSmartPointer<vtkMarchingCubes>::New();
+  surface->SetInputData( segImage );
+  surface->ComputeNormalsOn();
+  surface->SetValue( 0, isoValue );
+
+  vtkSmartPointer<vtkPolyDataMapper> mapper = vtkSmartPointer<vtkPolyDataMapper>::New();
+  mapper->SetInputConnection( surface->GetOutputPort() );
+  mapper->ScalarVisibilityOff();
+
+  vtkSmartPointer<vtkActor> actor = vtkSmartPointer<vtkActor>::New();
+  actor->SetMapper( mapper );
+
+  // Create the renderer and render window
+  vtkSmartPointer<vtkRenderer> renderer = vtkSmartPointer<vtkRenderer>::New();
+  renderer->SetBackground( 0, 0, 0 );
+
+  vtkSmartPointer<vtkRenderWindow> renderWindow = vtkSmartPointer<vtkRenderWindow>::New();
+  renderWindow->AddRenderer( renderer );
+  vtkSmartPointer<vtkRenderWindowInteractor> interactor = vtkSmartPointer<vtkRenderWindowInteractor>::New();
+  interactor->SetRenderWindow( renderWindow );
+
+  renderer->AddActor( actor );
   renderWindow->Render();
-  renderWindowInteractor->Start();
+  interactor->Start();
+
+  std::cout << "Done! \n";
 
   return EXIT_SUCCESS;
-}
-
-
-void TimerCallbackFunction ( vtkObject* caller, long unsigned int vtkNotUsed(eventId), void* clientData, void* vtkNotUsed(callData) )
-{
-  cout << "timer callback" << endl;
-
-  vtkSmartPointer<vtkProgrammableFilter> programmableFilter =
-      static_cast<vtkProgrammableFilter*>(clientData);
-
-  vtkRenderWindowInteractor *iren =
-    static_cast<vtkRenderWindowInteractor*>(caller);
-
-  programmableFilter->Modified();
-
-  iren->Render();
-
-  counter2++;
 }
