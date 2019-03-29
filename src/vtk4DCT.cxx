@@ -6,6 +6,20 @@
 */
 #include "helperFunctions.hxx"
 
+// TO-DO: Clean up headers. Move to helperFunctions.hxx
+#include <filesystem>
+namespace fs = std::experimental::filesystem;
+
+#include <vector>
+#include <utility>
+#include <fstream>
+
+#include <vtkProperty.h>
+#include <vtkWindowedSincPolyDataFilter.h>
+
+// ONLY WORKS ON WINDOWS!
+#include <direct.h>
+
 int main(int argc, char* argv[])
 {
   /***************************************************************
@@ -19,93 +33,167 @@ int main(int argc, char* argv[])
       return EXIT_FAILURE;
   }
 
-  vtkSmartPointer<vtkDICOMImageReader> dicomReader = vtkSmartPointer<vtkDICOMImageReader>::New();;
+  vtkSmartPointer<vtkDICOMImageReader> dicomReader   = vtkSmartPointer<vtkDICOMImageReader>::New();
+  vtkSmartPointer<vtkImageData>        volume        = vtkSmartPointer<vtkImageData>::New();
+  vtkSmartPointer<vtkImageData>        gaussianImage = vtkSmartPointer<vtkImageData>::New();
+  vtkSmartPointer<vtkImageData>        segImage      = vtkSmartPointer<vtkImageData>::New();
 
-  vtkSmartPointer<vtkImageData> volume        = vtkSmartPointer<vtkImageData>::New();
-  vtkSmartPointer<vtkImageData> gaussianImage = vtkSmartPointer<vtkImageData>::New();
-  vtkSmartPointer<vtkImageData> segImage      = vtkSmartPointer<vtkImageData>::New();
+// TO-DO: Move code below to a new function
+  // /***************************************************************
+  // *   Sort and store the DICOM files by volume/frame
+  // ***************************************************************/
+  // // TO-DO: Fix hardcoded file path
+  std::string path = "D:\\Git\\sort_4D-CT_DICOMs\\DICOMs\\SORTED";
 
-  dicomReader->SetDirectoryName( argv[1] );
-  dicomReader->Update();
+  // /* 
+  // *  First, read in all files in the directory into a vector.
+  // *  Next, sort the vector into ascending order. When you read in the directory,
+  // *   the files aren't in ascending order (i.e. 1,2,3,...,1280). Instead, they
+  // *   are ordered by the first number in the file name (i.e. 1,10,100,1000,...).
+  // *  Create a vector to hold each file's path and number.
+  // */
+  std::cout << "Reading in DICOM images...";
+  std::vector< std::pair<int, std::string> > dicomDirectoryData;
 
-  volume = dicomReader->GetOutput();
+  for ( const auto & entry : fs::directory_iterator( path ) )
+  {
+    // For now, the location of the file's number is hardcoded...
+    // TO-DO: fix
+    int temp = std::stoi( entry.path().string().substr( 42, entry.path().string().length() - 4 ) );
+    dicomDirectoryData.push_back( { temp, entry.path().string() } );
+  }
+
+  /* 
+  *  Now sort the vector in ascending order by the file's number
+  *  Since we made the file number the first element in the pair, we can just use a simple sort
+  */
+  std::sort( dicomDirectoryData.begin(), dicomDirectoryData.end() );
+
+  std::vector< std::vector< std::pair<int, std::string> > > data;
+
+  int count = 0;
+
+  for ( int i = 0; i < 10; i++ )
+  {    
+    // Create a new directory for each volume (**ONLY WORKS ON WINDOWS OS!**)
+    std::string num = std::to_string( i+1 );
+    std::string volDir = "D:\\4D-CT Data\\TestTube\\volumes\\vol_" + num + "\\";
+    mkdir( volDir.c_str() );
+
+    std::vector< std::pair<int, std::string> > temp;
+
+    for ( int j = 0; j < 16 && count < 160; j++, count++ )
+    {
+      temp.push_back( { dicomDirectoryData[count].first, dicomDirectoryData[count].second } );
+
+      std::string dicomFile = ( dicomDirectoryData[count].second).substr( 39, ( dicomDirectoryData[count].second ).length() );
+      std::string srcDir    = dicomDirectoryData[count].second;
+
+      std::ifstream src(srcDir.c_str(), std::ios::binary);
+      std::ofstream dest( ( volDir + dicomFile ).c_str(), std::ios::binary);
+      dest << src.rdbuf();
+      src.close();
+      dest.close();
+    }
+    data.push_back( temp );
+  }
+  
+  std::cout << "Done!\n";
 
   /***************************************************************
-  *   Apply a Gaussian and median filter to the image
+  *   Process each volume and save results into a vector
   ***************************************************************/
-  std::cout << "\n**Filtering the input image** \n";
+  std::cout << "Processing the volumes...";
 
-  std::cout << "Applying a Gaussian filter with std = 1.0...";
-  vtkSmartPointer<vtkImageGaussianSmooth> gaussianSmoothFilter = vtkSmartPointer<vtkImageGaussianSmooth>::New();
-  gaussianSmoothFilter->SetInputData( volume );
-  gaussianSmoothFilter->SetStandardDeviation( 1.0 );
-  gaussianSmoothFilter->SetRadiusFactors( 1.0, 1.0, 1.0 );
-  gaussianSmoothFilter->SetDimensionality( 3 );
-  gaussianSmoothFilter->Update();
+  // First, sort the slices of each volume into ascending order
+  for ( int i = 0; i < data.size(); i++ )
+  {
+    std::sort( data[i].begin(), data[i].end() );
+  }
 
-  gaussianImage = gaussianSmoothFilter->GetOutput();
-  std::cout << "Done! \n";
+  // Create a vector for each surface object (saving the volumes proved to be much more difficult...)
+  std::vector< vtkSmartPointer<vtkPolyData> > dicomVolumes;
 
-  /***************************************************************
-  *   Segment the input image
-  ***************************************************************/
-  // Perform segmentation to extract bone
-  int lowerThresh = 0, upperThresh = 0;
-  double isoValue = 0.0;
+  for ( int i = 0; i < data.size(); i++ )
+  {
+    std::string temp = "D:\\4D-CT Data\\TestTube\\volumes\\vol_" + std::to_string( i + 1 );
 
-  // Get the threshold and isovalue parameters from the user
-  std::cout << "Performing image segmentation \n";
-  std::cout << "Please enter upper and lower threshold values: \n";
-  std::cout << "Lower Threshold = ";
-  std::cin >> lowerThresh;
-  std::cout << "Upper Threshold = ";
-  std::cin >> upperThresh;
+    dicomReader->SetDirectoryName( temp.c_str() );
+    dicomReader->Update();
 
-  std::cout << "Please enter the desired isovalue for the Marching Cubes algortihm: ";
-  std::cin >> isoValue;
+    /***************************************************************
+    *   Apply a Gaussian and median filter to the image
+    ***************************************************************/
+    vtkSmartPointer<vtkImageGaussianSmooth> gaussianSmoothFilter = vtkSmartPointer<vtkImageGaussianSmooth>::New();
+    gaussianSmoothFilter->SetInputData( dicomReader->GetOutput() );
+    gaussianSmoothFilter->SetStandardDeviation( 1.0 );
+    gaussianSmoothFilter->SetRadiusFactors( 1.0, 1.0, 1.0 );
+    gaussianSmoothFilter->SetDimensionality( 3 );
+    gaussianSmoothFilter->Update();
 
-  // Apply the global threshold
-  vtkSmartPointer<vtkImageThreshold> globalThresh = vtkSmartPointer<vtkImageThreshold>::New();
-  globalThresh->SetInputData( gaussianImage );
-  globalThresh->ThresholdBetween( lowerThresh, upperThresh );
-  globalThresh->ReplaceInOn();
-  globalThresh->SetInValue( isoValue + 1 );
-  globalThresh->ReplaceOutOn();
-  globalThresh->SetOutValue(0);
-  globalThresh->SetOutputScalarTypeToFloat();
-  globalThresh->Update();
+    /***************************************************************
+    *   Segment the input image
+    ***************************************************************/
+    // Perform segmentation to extract bone
+    int lowerThresh = -800, upperThresh = 500;
+    double isoValue = 50.0;
 
-  segImage = globalThresh->GetOutput();
+    // Apply the global threshold
+    vtkSmartPointer<vtkImageThreshold> globalThresh = vtkSmartPointer<vtkImageThreshold>::New();
+    globalThresh->SetInputData( gaussianSmoothFilter->GetOutput() );
+    globalThresh->ThresholdBetween( lowerThresh, upperThresh );
+    globalThresh->ReplaceInOn();
+    globalThresh->SetInValue( isoValue + 1 );
+    globalThresh->ReplaceOutOn();
+    globalThresh->SetOutValue(0);
+    globalThresh->SetOutputScalarTypeToFloat();
+    globalThresh->Update();
 
-  // Use the Marching cubes algorithm to generate the surface
-  std::cout << "Generating surface using Marching cubes \n";
+    // Use the Marching cubes algorithm to generate the surface
+    vtkSmartPointer<vtkMarchingCubes> surface = vtkSmartPointer<vtkMarchingCubes>::New();
+    surface->SetInputData( globalThresh->GetOutput() );
+    surface->ComputeNormalsOn();
+    surface->SetValue( 0, isoValue );
 
-  vtkSmartPointer<vtkMarchingCubes> surface = vtkSmartPointer<vtkMarchingCubes>::New();
-  surface->SetInputData( segImage );
-  surface->ComputeNormalsOn();
-  surface->SetValue( 0, isoValue );
+    // Smooth the surface using Taubin smoothing
+    vtkSmartPointer<vtkWindowedSincPolyDataFilter> smoother = vtkSmartPointer<vtkWindowedSincPolyDataFilter>::New();
+    smoother->SetInputConnection( surface->GetOutputPort() );
+    smoother->SetNumberOfIterations( 15 );
+    smoother->BoundarySmoothingOff();
+    smoother->FeatureEdgeSmoothingOff();
+    smoother->SetFeatureAngle( 120.0 );
+    smoother->SetPassBand( 0.001 );
+    smoother->NonManifoldSmoothingOn();
+    smoother->NormalizeCoordinatesOn();
+    smoother->Update();
 
-  vtkSmartPointer<vtkPolyDataMapper> mapper = vtkSmartPointer<vtkPolyDataMapper>::New();
-  mapper->SetInputConnection( surface->GetOutputPort() );
-  mapper->ScalarVisibilityOff();
+    dicomVolumes.push_back( vtkSmartPointer<vtkPolyData>::New() );
+    dicomVolumes[i] = smoother->GetOutput();
 
-  vtkSmartPointer<vtkActor> actor = vtkSmartPointer<vtkActor>::New();
-  actor->SetMapper( mapper );
+    // Test Rendering
+    // if ( i == 3 )
+    // {
+    //   vtkSmartPointer<vtkRenderer> renderer = vtkSmartPointer<vtkRenderer>::New();
+    //   renderer->SetBackground( 0, 0, 0 );
 
-  // Create the renderer and render window
-  vtkSmartPointer<vtkRenderer> renderer = vtkSmartPointer<vtkRenderer>::New();
-  renderer->SetBackground( 0, 0, 0 );
+    //   vtkSmartPointer<vtkRenderWindow> renderWindow = vtkSmartPointer<vtkRenderWindow>::New();
+    //   renderWindow->AddRenderer( renderer );
+    //   vtkSmartPointer<vtkRenderWindowInteractor> interactor = vtkSmartPointer<vtkRenderWindowInteractor>::New();
+    //   interactor->SetRenderWindow( renderWindow );
 
-  vtkSmartPointer<vtkRenderWindow> renderWindow = vtkSmartPointer<vtkRenderWindow>::New();
-  renderWindow->AddRenderer( renderer );
-  vtkSmartPointer<vtkRenderWindowInteractor> interactor = vtkSmartPointer<vtkRenderWindowInteractor>::New();
-  interactor->SetRenderWindow( renderWindow );
+    //   vtkSmartPointer<vtkPolyDataMapper> mapper = vtkSmartPointer<vtkPolyDataMapper>::New();
+    //   mapper->SetInputConnection( smoother->GetOutputPort() );
+    //   mapper->ScalarVisibilityOff();
 
-  renderer->AddActor( actor );
-  renderWindow->Render();
-  interactor->Start();
+    //   vtkSmartPointer<vtkActor> actor = vtkSmartPointer<vtkActor>::New();
+    //   actor->SetMapper( mapper );
 
-  std::cout << "Done! \n";
+    //   renderer->AddActor( actor );
+
+    //   renderWindow->Render();
+    //   interactor->Start();
+    // }
+  }  
 
   return EXIT_SUCCESS;
 }
