@@ -4,6 +4,15 @@
 *   4D-CT Pipeline: similar to the timer/animation example, but first process the 80 volumes (filter, threshold, Marching cubes), 
 *                   then save them to STL files. Then read in these files and loop through them (update mappers and actors with new inputs for each volume).
 */
+
+
+// TO-DO: Organize code!!!
+
+// TO-DO: Add volume animations - DONE (29-03-2019)
+// TO-DO: Add point picking
+// TO-DO: Track picked points
+// TO-DO: Quantify changes in distance (or changes in geometry?)
+
 #include "helperFunctions.hxx"
 
 // TO-DO: Clean up headers. Move to helperFunctions.hxx
@@ -17,8 +26,38 @@ namespace fs = std::experimental::filesystem;
 #include <vtkProperty.h>
 #include <vtkWindowedSincPolyDataFilter.h>
 
+#include <vtkProgrammableFilter.h>
+#include <vtkCallbackCommand.h>
+#include <vtkCubeSource.h>
+
 // ONLY WORKS ON WINDOWS!
 #include <direct.h>
+
+void TimerCallbackFunction ( vtkObject* caller, long unsigned int eventId, void* clientData, void* callData );
+
+// Globals
+unsigned int counter2 = 0;
+unsigned int volCounter = 0;
+
+bool forward = true;
+bool reverse = false;
+
+// Create a vector for each surface object (saving the volumes proved to be much more difficult...)
+std::vector< vtkSmartPointer<vtkPolyData> > dicomVolumes;
+
+// Function to switch between volumes/frames
+void AdjustPoints2(void* arguments)
+{
+  vtkProgrammableFilter* programmableFilter = static_cast<vtkProgrammableFilter*>(arguments);
+
+  vtkPolyData* inPts = programmableFilter->GetPolyDataInput();
+
+  vtkSmartPointer<vtkPolyData> newPts = vtkSmartPointer<vtkPolyData>::New();
+  newPts = dicomVolumes[volCounter];
+
+  programmableFilter->GetPolyDataOutput()->CopyStructure(programmableFilter->GetPolyDataInput());
+  programmableFilter->GetPolyDataOutput()->DeepCopy(newPts);
+}
 
 int main(int argc, char* argv[])
 {
@@ -52,7 +91,7 @@ int main(int argc, char* argv[])
   // *   are ordered by the first number in the file name (i.e. 1,10,100,1000,...).
   // *  Create a vector to hold each file's path and number.
   // */
-  std::cout << "Reading in DICOM images...";
+  std::cout << "\n***Reading and sorting 4D DICOM images***\n";
   std::vector< std::pair<int, std::string> > dicomDirectoryData;
 
   for ( const auto & entry : fs::directory_iterator( path ) )
@@ -75,6 +114,8 @@ int main(int argc, char* argv[])
 
   for ( int i = 0; i < 10; i++ )
   {    
+    std::cout << "Reading DICOMs for volume #" << (i+1) << "...";
+
     // Create a new directory for each volume (**ONLY WORKS ON WINDOWS OS!**)
     std::string num = std::to_string( i+1 );
     std::string volDir = "D:\\4D-CT Data\\TestTube\\volumes\\vol_" + num + "\\";
@@ -96,14 +137,14 @@ int main(int argc, char* argv[])
       dest.close();
     }
     data.push_back( temp );
+
+    std::cout << "Done! \n";
   }
-  
-  std::cout << "Done!\n";
 
   /***************************************************************
   *   Process each volume and save results into a vector
   ***************************************************************/
-  std::cout << "Processing the volumes...";
+  std::cout << "\n***Processing the volumes***\n";
 
   // First, sort the slices of each volume into ascending order
   for ( int i = 0; i < data.size(); i++ )
@@ -111,11 +152,10 @@ int main(int argc, char* argv[])
     std::sort( data[i].begin(), data[i].end() );
   }
 
-  // Create a vector for each surface object (saving the volumes proved to be much more difficult...)
-  std::vector< vtkSmartPointer<vtkPolyData> > dicomVolumes;
-
   for ( int i = 0; i < data.size(); i++ )
   {
+    std::cout << "Processing volume #" << (i+1) << "...";
+
     std::string temp = "D:\\4D-CT Data\\TestTube\\volumes\\vol_" + std::to_string( i + 1 );
 
     dicomReader->SetDirectoryName( temp.c_str() );
@@ -155,6 +195,8 @@ int main(int argc, char* argv[])
     surface->ComputeNormalsOn();
     surface->SetValue( 0, isoValue );
 
+    // Add decimation?
+
     // Smooth the surface using Taubin smoothing
     vtkSmartPointer<vtkWindowedSincPolyDataFilter> smoother = vtkSmartPointer<vtkWindowedSincPolyDataFilter>::New();
     smoother->SetInputConnection( surface->GetOutputPort() );
@@ -169,6 +211,8 @@ int main(int argc, char* argv[])
 
     dicomVolumes.push_back( vtkSmartPointer<vtkPolyData>::New() );
     dicomVolumes[i] = smoother->GetOutput();
+
+    std::cout << "Done! \n";
 
     // Test Rendering
     // if ( i == 3 )
@@ -195,5 +239,88 @@ int main(int argc, char* argv[])
     // }
   }  
 
+  // Create a plane
+  vtkSmartPointer<vtkCubeSource> cubeSource = vtkSmartPointer<vtkCubeSource>::New();
+  cubeSource->SetXLength(125);
+  cubeSource->SetYLength(10);
+  cubeSource->SetZLength(150);
+  cubeSource->SetCenter(70,14,25);
+  cubeSource->Update();
+
+  vtkPolyData* cube = cubeSource->GetOutput();
+
+  vtkSmartPointer<vtkPolyDataMapper> cubeMapper = vtkSmartPointer<vtkPolyDataMapper>::New();
+  cubeMapper->SetInputData(cube);
+
+  vtkSmartPointer<vtkActor> cubeActor = vtkSmartPointer<vtkActor>::New();
+  cubeActor->SetMapper(cubeMapper);
+  cubeActor->GetProperty()->SetColor(1,0,0);
+  
+
+  vtkSmartPointer<vtkProgrammableFilter> programmableFilter = vtkSmartPointer<vtkProgrammableFilter>::New();
+  programmableFilter->SetInputData(dicomVolumes[volCounter]);
+  programmableFilter->SetExecuteMethod(AdjustPoints2, programmableFilter);
+
+  // Create a mapper and actor
+  vtkSmartPointer<vtkPolyDataMapper> mapper = vtkSmartPointer<vtkPolyDataMapper>::New();
+  mapper->SetInputConnection(programmableFilter->GetOutputPort());
+  vtkSmartPointer<vtkActor> actor = vtkSmartPointer<vtkActor>::New();
+  actor->SetMapper(mapper);
+
+  // Create a renderer, render window, and interactor
+  vtkSmartPointer<vtkRenderer> renderer = vtkSmartPointer<vtkRenderer>::New();
+  vtkSmartPointer<vtkRenderWindow> renderWindow = vtkSmartPointer<vtkRenderWindow>::New();
+  renderWindow->AddRenderer(renderer);
+  vtkSmartPointer<vtkRenderWindowInteractor> renderWindowInteractor = vtkSmartPointer<vtkRenderWindowInteractor>::New();
+  renderWindowInteractor->SetRenderWindow(renderWindow);
+
+  // Initialize must be called prior to creating timer events.
+  renderWindowInteractor->Initialize();
+  renderWindowInteractor->CreateRepeatingTimer(200);
+
+  vtkSmartPointer<vtkCallbackCommand> timerCallback = vtkSmartPointer<vtkCallbackCommand>::New();
+  timerCallback->SetCallback ( TimerCallbackFunction );
+  timerCallback->SetClientData( programmableFilter );
+
+  renderWindowInteractor->AddObserver ( vtkCommand::TimerEvent, timerCallback );
+
+  // Add the actor to the scene
+  renderer->AddActor(actor);
+  renderer->AddActor(cubeActor);
+  renderer->SetBackground(0,0,0); // Background color black
+
+  // Render and interact
+  renderWindow->Render();
+  renderWindowInteractor->Start();
+
   return EXIT_SUCCESS;
+}
+
+void TimerCallbackFunction ( vtkObject* caller, long unsigned int vtkNotUsed(eventId), void* clientData, void* vtkNotUsed(callData) )
+{
+  if (volCounter <= 0)
+  {
+    forward = true;
+    reverse = false;
+  }
+  else if (volCounter >= 9)
+  {
+    reverse = true;
+    forward = false;
+  }
+
+  vtkSmartPointer<vtkProgrammableFilter> programmableFilter = static_cast<vtkProgrammableFilter*>(clientData);
+
+  vtkRenderWindowInteractor *iren = static_cast<vtkRenderWindowInteractor*>(caller);
+
+  programmableFilter->Modified();
+
+  iren->Render();
+
+  counter2++;
+
+  if (forward)
+    volCounter++;
+  else if (reverse)
+    volCounter--;
 }
