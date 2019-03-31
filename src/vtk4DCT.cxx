@@ -32,6 +32,8 @@ namespace fs = std::experimental::filesystem;
 #include <vtkTransform.h>
 #include <vtkTransformPolyDataFilter.h>
 #include <vtkLight.h>
+#include <vtkWorldPointPicker.h>
+#include <vtkRendererCollection.h>
 
 // ONLY WORKS ON WINDOWS!
 #include <direct.h>
@@ -61,6 +63,31 @@ void AdjustPoints2(void* arguments)
   programmableFilter->GetPolyDataOutput()->CopyStructure(programmableFilter->GetPolyDataInput());
   programmableFilter->GetPolyDataOutput()->DeepCopy(newPts);
 }
+
+// Define interaction style
+class MouseInteractorStyle : public vtkInteractorStyleTrackballCamera
+{
+  public:
+    static MouseInteractorStyle* New();
+    vtkTypeMacro(MouseInteractorStyle, vtkInteractorStyleTrackballCamera);
+ 
+    virtual void OnLeftButtonDown() 
+    {
+      
+      std::cout << "Picking pixel: " << this->Interactor->GetEventPosition()[0] << " " << this->Interactor->GetEventPosition()[1] << std::endl;
+      this->Interactor->GetPicker()->Pick(this->Interactor->GetEventPosition()[0], 
+                         this->Interactor->GetEventPosition()[1], 
+                         0,  // always zero.
+                         this->Interactor->GetRenderWindow()->GetRenderers()->GetFirstRenderer());
+      double picked[3];
+      this->Interactor->GetPicker()->GetPickPosition(picked);
+      std::cout << "Picked value: " << picked[0] << " " << picked[1] << " " << picked[2] << std::endl;
+      // Forward events
+      vtkInteractorStyleTrackballCamera::OnLeftButtonDown();
+    }
+ 
+};
+vtkStandardNewMacro(MouseInteractorStyle);
 
 int main(int argc, char* argv[])
 {
@@ -242,7 +269,9 @@ int main(int argc, char* argv[])
     // }
   }  
 
-  // Create a plane
+  vtkSmartPointer<vtkWorldPointPicker> worldPointPicker = vtkSmartPointer<vtkWorldPointPicker>::New();
+
+  // Create a cube surface
   vtkSmartPointer<vtkCubeSource> cubeSource = vtkSmartPointer<vtkCubeSource>::New();
   cubeSource->SetXLength(125);
   cubeSource->SetYLength(10);
@@ -297,6 +326,7 @@ int main(int argc, char* argv[])
   timerCallback->SetClientData( programmableFilter );
 
   renderWindowInteractor->AddObserver ( vtkCommand::TimerEvent, timerCallback );
+  renderWindowInteractor->SetPicker(worldPointPicker);
 
   // Add the actor to the scene
   renderer->AddActor(actor);
