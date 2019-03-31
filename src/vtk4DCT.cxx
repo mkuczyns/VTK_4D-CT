@@ -1,17 +1,17 @@
 /*
-*   Example code using a timer to update a render object.
 *
 *   4D-CT Pipeline: similar to the timer/animation example, but first process the 80 volumes (filter, threshold, Marching cubes), 
-*                   then save them to STL files. Then read in these files and loop through them (update mappers and actors with new inputs for each volume).
+*                   then save them to a vector. Then read in these files and loop through them (update mappers and actors with new inputs for each volume).
 */
 
 
 // TO-DO: Organize code!!!
 
-// TO-DO: Add volume animations - DONE (29-03-2019)
-// TO-DO: Add point picking
-// TO-DO: Track picked points
-// TO-DO: Quantify changes in distance (or changes in geometry?)
+// TO-DO: Add volume animations                                   - DONE (29-03-2019)
+// TO-DO: Add point picking                                       - DONE (30-03-2019)
+// TO-DO: Display picked points                                   -
+// TO-DO: Track picked points                                     -
+// TO-DO: Quantify changes in distance (or changes in geometry?)  -
 
 #include "helperFunctions.hxx"
 
@@ -327,6 +327,9 @@ int main(int argc, char* argv[])
 
   renderWindowInteractor->AddObserver ( vtkCommand::TimerEvent, timerCallback );
   renderWindowInteractor->SetPicker(worldPointPicker);
+
+  vtkSmartPointer<MouseInteractorStyle> style = vtkSmartPointer<MouseInteractorStyle>::New();
+  renderWindowInteractor->SetInteractorStyle(style);
 
   // Add the actor to the scene
   renderer->AddActor(actor);
