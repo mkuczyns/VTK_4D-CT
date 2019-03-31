@@ -29,6 +29,9 @@ namespace fs = std::experimental::filesystem;
 #include <vtkProgrammableFilter.h>
 #include <vtkCallbackCommand.h>
 #include <vtkCubeSource.h>
+#include <vtkTransform.h>
+#include <vtkTransformPolyDataFilter.h>
+#include <vtkLight.h>
 
 // ONLY WORKS ON WINDOWS!
 #include <direct.h>
@@ -244,18 +247,29 @@ int main(int argc, char* argv[])
   cubeSource->SetXLength(125);
   cubeSource->SetYLength(10);
   cubeSource->SetZLength(150);
-  cubeSource->SetCenter(70,14,25);
+  cubeSource->SetCenter(70,0,25);
   cubeSource->Update();
 
   vtkPolyData* cube = cubeSource->GetOutput();
 
+  vtkSmartPointer<vtkTransform> rotation = vtkSmartPointer<vtkTransform>::New();
+  rotation->RotateX(10);
+
+  vtkSmartPointer<vtkTransformPolyDataFilter> rotationFilter = vtkSmartPointer<vtkTransformPolyDataFilter>::New();
+  rotationFilter->SetInputData(cube);
+  rotationFilter->SetTransform(rotation);
+  rotationFilter->Update();
+
   vtkSmartPointer<vtkPolyDataMapper> cubeMapper = vtkSmartPointer<vtkPolyDataMapper>::New();
-  cubeMapper->SetInputData(cube);
+  cubeMapper->SetInputData(rotationFilter->GetOutput());
 
   vtkSmartPointer<vtkActor> cubeActor = vtkSmartPointer<vtkActor>::New();
   cubeActor->SetMapper(cubeMapper);
-  cubeActor->GetProperty()->SetColor(1,0,0);
-  
+  cubeActor->GetProperty()->SetColor(0.8,0.8,0.4);
+  cubeActor->GetProperty()->ShadingOn();
+  cubeActor->GetProperty()->SetDiffuse(0.8);
+  // cubeActor->GetProperty()->SetAmbient(0.2);
+  // cubeActor->GetProperty()->SetSpecular(0.8);
 
   vtkSmartPointer<vtkProgrammableFilter> programmableFilter = vtkSmartPointer<vtkProgrammableFilter>::New();
   programmableFilter->SetInputData(dicomVolumes[volCounter]);
@@ -288,6 +302,29 @@ int main(int argc, char* argv[])
   renderer->AddActor(actor);
   renderer->AddActor(cubeActor);
   renderer->SetBackground(0,0,0); // Background color black
+
+  // Add another light source
+  // vtkSmartPointer<vtkLight> light = vtkSmartPointer<vtkLight>::New();
+  // light->SetPositional(1);
+  // light->SetPosition(70, 50, 25);
+  // light->SetColor(1.0, 1.0, 1.0);
+  // light->SetIntensity(0.8);
+
+  // vtkSmartPointer<vtkLight> light2 = vtkSmartPointer<vtkLight>::New();
+  // light2->SetPositional(1);
+  // light2->SetPosition(100, 0, 0);
+  // light2->SetColor(1.0, 1.0, 1.0);
+  // light2->SetIntensity(0.8);
+
+  //   vtkSmartPointer<vtkLight> light3 = vtkSmartPointer<vtkLight>::New();
+  // light3->SetPositional(1);
+  // light3->SetPosition(0, 0, 100);
+  // light3->SetColor(1.0, 1.0, 1.0);
+  // light3->SetIntensity(0.8);
+
+  // renderer->AddLight(light);
+  // renderer->AddLight(light2);
+  // renderer->AddLight(light3);
 
   // Render and interact
   renderWindow->Render();
