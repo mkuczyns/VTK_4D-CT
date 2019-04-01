@@ -9,11 +9,13 @@
 
 // TO-DO: Add volume animations                                   - DONE (29-03-2019)
 // TO-DO: Add point picking                                       - DONE (30-03-2019)
+// TO-DO: Control playback with keyboard                          -
 // TO-DO: Display picked points                                   -
 // TO-DO: Track picked points                                     -
 // TO-DO: Quantify changes in distance (or changes in geometry?)  -
 
 #include "helperFunctions.hxx"
+#include "interactorStyler.hxx"
 
 // TO-DO: Clean up headers. Move to helperFunctions.hxx
 #include <filesystem>
@@ -34,6 +36,7 @@ namespace fs = std::experimental::filesystem;
 #include <vtkLight.h>
 #include <vtkWorldPointPicker.h>
 #include <vtkRendererCollection.h>
+#include <vtkSphereSource.h>
 
 // ONLY WORKS ON WINDOWS!
 #include <direct.h>
@@ -43,6 +46,8 @@ void TimerCallbackFunction ( vtkObject* caller, long unsigned int eventId, void*
 // Globals
 unsigned int counter2 = 0;
 unsigned int volCounter = 0;
+unsigned int pointCounter = -1;    // Maximum of 2 points allowed at a time
+unsigned int timerDuration = 200;
 
 bool forward = true;
 bool reverse = false;
@@ -65,42 +70,149 @@ void AdjustPoints2(void* arguments)
 }
 
 // Define interaction style
-class MouseInteractorStyle : public vtkInteractorStyleTrackballCamera
+class myInteractorStyle : public vtkInteractorStyleTrackballCamera
 {
   public:
-    static MouseInteractorStyle* New();
-    vtkTypeMacro(MouseInteractorStyle, vtkInteractorStyleTrackballCamera);
+    static myInteractorStyle* New();
+    vtkTypeMacro( myInteractorStyle, vtkInteractorStyleTrackballCamera );
+
+    vtkSmartPointer<vtkActor> point_1_actor, point_2_actor;
  
-    virtual void OnLeftButtonDown() 
+    /*
+    *   Reset the picked points (maximum 2 points at one time).
+    */
+    // void resetPointPicking()
+    // {
+    //   if ( pointCounter == 0 )
+    //   {
+    //     this->Interactor->GetRenderWindow()->GetRenderers()->GetFirstRenderer()->RemoveActor(point_1_actor);
+    //   }
+    //   else if ( pointCounter == 1 )
+    //   {
+    //     this->Interactor->GetRenderWindow()->GetRenderers()->GetFirstRenderer()->RemoveActor(point_1_actor);
+    //     this->Interactor->GetRenderWindow()->GetRenderers()->GetFirstRenderer()->RemoveActor(point_2_actor);
+    //   }
+    //   else
+    //   {
+    //     std::cout << "No points to remove!\n";
+    //   }
+    // }
+
+    // /*
+    // *   Increase the timer Duration (slow down the animation).
+    // */
+    // void increaseTimerDuration()
+    // {
+    //   if (timerDuration < 1000 )
+    //   {
+    //     timerDuration += 100;
+    //     std::cout << this->Interactor->GetTimerDuration() << "\n";
+    //     this->Interactor->GetRenderWindow()->Render();
+    //   }
+    // }
+
+    // /*
+    // *   Decrease the timer Duration (speed up the animation).
+    // */
+    // void decreaseTimerDuration()
+    // {
+    //   if (timerDuration > 100 )
+    //   {
+    //     timerDuration -= 100;
+    //     std::cout << this->Interactor->GetTimerDuration() << "\n";
+    //     this->Interactor->GetRenderWindow()->Render();
+    //   }
+    // }
+
+    virtual void OnRightButtonDown() 
     {
+      if ( pointCounter < 3 )
+      {
+        std::cout << "Picking pixel: " << this->Interactor->GetEventPosition()[0] << " " << this->Interactor->GetEventPosition()[1] << std::endl;
+       
+        this->Interactor->GetPicker()->Pick(this->Interactor->GetEventPosition()[0], 
+                          this->Interactor->GetEventPosition()[1], 
+                          0,  // always zero.
+                          this->Interactor->GetRenderWindow()->GetRenderers()->GetFirstRenderer());
+        
+        double picked[3];
+        
+        this->Interactor->GetPicker()->GetPickPosition(picked);
+        
+        std::cout << "Picked value: " << picked[0] << " " << picked[1] << " " << picked[2] << std::endl;
+        
+        pointCounter++;
+
+        //Create a sphere
+        vtkSmartPointer<vtkSphereSource> sphereSource = vtkSmartPointer<vtkSphereSource>::New();
+        sphereSource->SetCenter(picked[0], picked[1], picked[2]);
+        sphereSource->SetRadius(1.0);
+
+        //Create a mapper and actor
+        vtkSmartPointer<vtkPolyDataMapper> mapper = vtkSmartPointer<vtkPolyDataMapper>::New();
+        mapper->SetInputConnection(sphereSource->GetOutputPort());
+
+        if ( pointCounter == 0 )
+        {
+          point_1_actor = vtkSmartPointer<vtkActor>::New();
+          point_1_actor->SetMapper(mapper);
+          this->Interactor->GetRenderWindow()->GetRenderers()->GetFirstRenderer()->AddActor(point_1_actor);
+        }
+        else if ( pointCounter == 1 )
+        {
+          point_2_actor = vtkSmartPointer<vtkActor>::New();
+          point_2_actor->SetMapper(mapper);
+          this->Interactor->GetRenderWindow()->GetRenderers()->GetFirstRenderer()->AddActor(point_2_actor);
+        }        
+
+        // Forward events
+        vtkInteractorStyleTrackballCamera::OnRightButtonDown();
+
+        pointCounter++;
+      }
+      else
+      {
+        std::cout << "Maximum number of points selected. Use 'r' to reset the points.\n";
+      }
       
-      std::cout << "Picking pixel: " << this->Interactor->GetEventPosition()[0] << " " << this->Interactor->GetEventPosition()[1] << std::endl;
-      this->Interactor->GetPicker()->Pick(this->Interactor->GetEventPosition()[0], 
-                         this->Interactor->GetEventPosition()[1], 
-                         0,  // always zero.
-                         this->Interactor->GetRenderWindow()->GetRenderers()->GetFirstRenderer());
-      double picked[3];
-      this->Interactor->GetPicker()->GetPickPosition(picked);
-      std::cout << "Picked value: " << picked[0] << " " << picked[1] << " " << picked[2] << std::endl;
-      // Forward events
-      vtkInteractorStyleTrackballCamera::OnLeftButtonDown();
     }
+
+    // virtual void OnKeyDown()
+    // {
+    //     std::string key = this->GetInteractor()->GetKeySym();
+
+    //     if ( key.compare("r") == 0 ) 
+    //     {
+    //       resetPointPicking();
+    //     }
+    //     else if ( key.compare("Up") == 0 ) 
+    //     {
+    //       increaseTimerDuration();
+    //     }
+    //     else if ( key.compare("Down") == 0 ) 
+    //     {
+    //       decreaseTimerDuration();
+    //     }
+
+    //     vtkInteractorStyleImage::OnKeyDown();
+    // }
  
 };
-vtkStandardNewMacro(MouseInteractorStyle);
+
+vtkStandardNewMacro(myInteractorStyle);
 
 int main(int argc, char* argv[])
 {
   /***************************************************************
   *   Check input arguements
   ***************************************************************/
-  if ( argc != 2 )
-  {
-      std::cout << "ERROR: Incorrect program usage. \n";
-      std::cout << "Correct usage: \n";
-      std::cout << argv[0] << " <DICOM_Folder_Directory> \n";
-      return EXIT_FAILURE;
-  }
+  // if ( argc != 2 )
+  // {
+  //     std::cout << "ERROR: Incorrect program usage. \n";
+  //     std::cout << "Correct usage: \n";
+  //     std::cout << argv[0] << " <DICOM_Folder_Directory> \n";
+  //     return EXIT_FAILURE;
+  // }
 
   vtkSmartPointer<vtkDICOMImageReader> dicomReader   = vtkSmartPointer<vtkDICOMImageReader>::New();
   vtkSmartPointer<vtkImageData>        volume        = vtkSmartPointer<vtkImageData>::New();
@@ -112,7 +224,7 @@ int main(int argc, char* argv[])
   // *   Sort and store the DICOM files by volume/frame
   // ***************************************************************/
   // // TO-DO: Fix hardcoded file path
-  std::string path = "D:\\Git\\sort_4D-CT_DICOMs\\DICOMs\\SORTED";
+  std::string path = "E:\\4D-CT\\SORTED\\4D-CT\\TestTube\\PA0\\ST0\\SE1\\DECOMPRESSED\\STANDARD";
 
   // /* 
   // *  First, read in all files in the directory into a vector.
@@ -127,8 +239,8 @@ int main(int argc, char* argv[])
   for ( const auto & entry : fs::directory_iterator( path ) )
   {
     // For now, the location of the file's number is hardcoded...
-    // TO-DO: fix
-    int temp = std::stoi( entry.path().string().substr( 42, entry.path().string().length() - 4 ) );
+    // TO-DO: fix - the string path and the substring indicies are hardcoded... (42 on my laptop, 67 on my desktop)
+    int temp = std::stoi( entry.path().string().substr( 67, entry.path().string().length() - 4 ) );
     dicomDirectoryData.push_back( { temp, entry.path().string() } );
   }
 
@@ -148,7 +260,7 @@ int main(int argc, char* argv[])
 
     // Create a new directory for each volume (**ONLY WORKS ON WINDOWS OS!**)
     std::string num = std::to_string( i+1 );
-    std::string volDir = "D:\\4D-CT Data\\TestTube\\volumes\\vol_" + num + "\\";
+    std::string volDir = "E:\\4D-CT\\SORTED\\Volumes\\vol_" + num + "\\";
     mkdir( volDir.c_str() );
 
     std::vector< std::pair<int, std::string> > temp;
@@ -157,7 +269,8 @@ int main(int argc, char* argv[])
     {
       temp.push_back( { dicomDirectoryData[count].first, dicomDirectoryData[count].second } );
 
-      std::string dicomFile = ( dicomDirectoryData[count].second).substr( 39, ( dicomDirectoryData[count].second ).length() );
+      // TO-DO: fix - the string path and the substring indicies are hardcoded... (39 on my laptop, 64 on my desktop)
+      std::string dicomFile = ( dicomDirectoryData[count].second).substr( 65, ( dicomDirectoryData[count].second ).length() );
       std::string srcDir    = dicomDirectoryData[count].second;
 
       std::ifstream src(srcDir.c_str(), std::ios::binary);
@@ -186,7 +299,7 @@ int main(int argc, char* argv[])
   {
     std::cout << "Processing volume #" << (i+1) << "...";
 
-    std::string temp = "D:\\4D-CT Data\\TestTube\\volumes\\vol_" + std::to_string( i + 1 );
+    std::string temp = "E:\\4D-CT\\SORTED\\Volumes\\vol_" + std::to_string( i + 1 );
 
     dicomReader->SetDirectoryName( temp.c_str() );
     dicomReader->Update();
@@ -230,11 +343,11 @@ int main(int argc, char* argv[])
     // Smooth the surface using Taubin smoothing
     vtkSmartPointer<vtkWindowedSincPolyDataFilter> smoother = vtkSmartPointer<vtkWindowedSincPolyDataFilter>::New();
     smoother->SetInputConnection( surface->GetOutputPort() );
-    smoother->SetNumberOfIterations( 15 );
+    smoother->SetNumberOfIterations( 10 );
     smoother->BoundarySmoothingOff();
     smoother->FeatureEdgeSmoothingOff();
-    smoother->SetFeatureAngle( 120.0 );
-    smoother->SetPassBand( 0.001 );
+    smoother->SetFeatureAngle( 90.0 );
+    smoother->SetPassBand( 0.01 );
     smoother->NonManifoldSmoothingOn();
     smoother->NormalizeCoordinatesOn();
     smoother->Update();
@@ -314,22 +427,31 @@ int main(int argc, char* argv[])
   vtkSmartPointer<vtkRenderer> renderer = vtkSmartPointer<vtkRenderer>::New();
   vtkSmartPointer<vtkRenderWindow> renderWindow = vtkSmartPointer<vtkRenderWindow>::New();
   renderWindow->AddRenderer(renderer);
+
   vtkSmartPointer<vtkRenderWindowInteractor> renderWindowInteractor = vtkSmartPointer<vtkRenderWindowInteractor>::New();
   renderWindowInteractor->SetRenderWindow(renderWindow);
 
   // Initialize must be called prior to creating timer events.
   renderWindowInteractor->Initialize();
-  renderWindowInteractor->CreateRepeatingTimer(200);
+  renderWindowInteractor->EnableRenderOn();
+  renderWindowInteractor->CreateRepeatingTimer( 200 );
 
   vtkSmartPointer<vtkCallbackCommand> timerCallback = vtkSmartPointer<vtkCallbackCommand>::New();
-  timerCallback->SetCallback ( TimerCallbackFunction );
+  timerCallback->SetCallback( TimerCallbackFunction );
   timerCallback->SetClientData( programmableFilter );
 
   renderWindowInteractor->AddObserver ( vtkCommand::TimerEvent, timerCallback );
-  renderWindowInteractor->SetPicker(worldPointPicker);
+  renderWindowInteractor->SetPicker( worldPointPicker );
 
-  vtkSmartPointer<MouseInteractorStyle> style = vtkSmartPointer<MouseInteractorStyle>::New();
-  renderWindowInteractor->SetInteractorStyle(style);
+  vtkSmartPointer<myInteractorStyle> style = vtkSmartPointer<myInteractorStyle>::New();
+  renderWindowInteractor->SetInteractorStyle( style );
+
+  // Setup a custom interactor
+  // vtkSmartPointer<myInteractorStyler> myInteractorStyle = vtkSmartPointer<myInteractorStyler>::New();
+  // myInteractorStyle->setRenderWindow( renderWindow );
+  // myInteractorStyle->setTimer( renderWindowInteractor );
+
+  // renderWindowInteractor->SetInteractorStyle( myInteractorStyle );
 
   // Add the actor to the scene
   renderer->AddActor(actor);
@@ -385,6 +507,7 @@ void TimerCallbackFunction ( vtkObject* caller, long unsigned int vtkNotUsed(eve
 
   programmableFilter->Modified();
 
+  iren->SetTimerDuration( timerDuration );
   iren->Render();
 
   counter2++;

@@ -5,7 +5,7 @@ PROJECT(vtk4DCT)
 find_package(VTK REQUIRED)
 include(${VTK_USE_FILE})
 
-add_executable(vtk4DCT MACOSX_BUNDLE vtk4DCT.cxx helperFunctions.cxx)
+add_executable(vtk4DCT MACOSX_BUNDLE vtk4DCT.cxx helperFunctions.cxx interactorStyler.cxx)
 
 if(VTK_LIBRARIES)
   target_link_libraries(vtk4DCT ${VTK_LIBRARIES})
