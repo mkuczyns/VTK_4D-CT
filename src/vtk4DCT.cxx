@@ -81,22 +81,27 @@ class myInteractorStyle : public vtkInteractorStyleTrackballCamera
     /*
     *   Reset the picked points (maximum 2 points at one time).
     */
-    // void resetPointPicking()
-    // {
-    //   if ( pointCounter == 0 )
-    //   {
-    //     this->Interactor->GetRenderWindow()->GetRenderers()->GetFirstRenderer()->RemoveActor(point_1_actor);
-    //   }
-    //   else if ( pointCounter == 1 )
-    //   {
-    //     this->Interactor->GetRenderWindow()->GetRenderers()->GetFirstRenderer()->RemoveActor(point_1_actor);
-    //     this->Interactor->GetRenderWindow()->GetRenderers()->GetFirstRenderer()->RemoveActor(point_2_actor);
-    //   }
-    //   else
-    //   {
-    //     std::cout << "No points to remove!\n";
-    //   }
-    // }
+    void resetPointPicking()
+    {
+      if ( pointCounter == 0 )
+      {
+        this->Interactor->GetRenderWindow()->GetRenderers()->GetFirstRenderer()->RemoveActor(point_1_actor);
+      }
+      else if ( pointCounter == 1 )
+      {
+        this->Interactor->GetRenderWindow()->GetRenderers()->GetFirstRenderer()->RemoveActor(point_1_actor);
+        this->Interactor->GetRenderWindow()->GetRenderers()->GetFirstRenderer()->RemoveActor(point_2_actor);
+      }
+      else
+      {
+        std::cout << "No points to remove!\n";
+      }
+    }
+
+    void pauseTimer()
+    {
+      this->Interactor->
+    }
 
     // /*
     // *   Increase the timer Duration (slow down the animation).
@@ -126,8 +131,8 @@ class myInteractorStyle : public vtkInteractorStyleTrackballCamera
 
     virtual void OnRightButtonDown() 
     {
-      if ( pointCounter < 3 )
-      {
+      // if ( pointCounter < 3 )
+      // {
         std::cout << "Picking pixel: " << this->Interactor->GetEventPosition()[0] << " " << this->Interactor->GetEventPosition()[1] << std::endl;
        
         this->Interactor->GetPicker()->Pick(this->Interactor->GetEventPosition()[0], 
@@ -152,50 +157,62 @@ class myInteractorStyle : public vtkInteractorStyleTrackballCamera
         vtkSmartPointer<vtkPolyDataMapper> mapper = vtkSmartPointer<vtkPolyDataMapper>::New();
         mapper->SetInputConnection(sphereSource->GetOutputPort());
 
-        if ( pointCounter == 0 )
-        {
-          point_1_actor = vtkSmartPointer<vtkActor>::New();
-          point_1_actor->SetMapper(mapper);
-          this->Interactor->GetRenderWindow()->GetRenderers()->GetFirstRenderer()->AddActor(point_1_actor);
-        }
-        else if ( pointCounter == 1 )
-        {
-          point_2_actor = vtkSmartPointer<vtkActor>::New();
-          point_2_actor->SetMapper(mapper);
-          this->Interactor->GetRenderWindow()->GetRenderers()->GetFirstRenderer()->AddActor(point_2_actor);
-        }        
+        point_1_actor = vtkSmartPointer<vtkActor>::New();
+        point_1_actor->SetMapper(mapper);
+        this->Interactor->GetRenderWindow()->GetRenderers()->GetFirstRenderer()->AddActor(point_1_actor);
+
+        // if ( pointCounter == 0 )
+        // {
+        //   point_1_actor = vtkSmartPointer<vtkActor>::New();
+        //   point_1_actor->SetMapper(mapper);
+        //   this->Interactor->GetRenderWindow()->GetRenderers()->GetFirstRenderer()->AddActor(point_1_actor);
+        // }
+        // else if ( pointCounter == 1 )
+        // {
+        //   point_2_actor = vtkSmartPointer<vtkActor>::New();
+        //   point_2_actor->SetMapper(mapper);
+        //   this->Interactor->GetRenderWindow()->GetRenderers()->GetFirstRenderer()->AddActor(point_2_actor);
+        // }        
 
         // Forward events
         vtkInteractorStyleTrackballCamera::OnRightButtonDown();
 
         pointCounter++;
-      }
-      else
-      {
-        std::cout << "Maximum number of points selected. Use 'r' to reset the points.\n";
-      }
+      // }
+      // else
+      // {
+      //   std::cout << "Maximum number of points selected. Use 'r' to reset the points.\n";
+      // }
       
     }
 
-    // virtual void OnKeyDown()
-    // {
-    //     std::string key = this->GetInteractor()->GetKeySym();
+    virtual void OnKeyDown()
+    {
+        std::string key = this->GetInteractor()->GetKeySym();
 
-    //     if ( key.compare("r") == 0 ) 
-    //     {
-    //       resetPointPicking();
-    //     }
-    //     else if ( key.compare("Up") == 0 ) 
-    //     {
-    //       increaseTimerDuration();
-    //     }
-    //     else if ( key.compare("Down") == 0 ) 
-    //     {
-    //       decreaseTimerDuration();
-    //     }
+        if ( key.compare("r") == 0 ) 
+        {
+          resetPointPicking();
+        }
+        else if ( key.compare("p") == 0 )
+        {
+          pauseTimer();
+        }
+        else if ( key.compare("s") == 0 )
+        {
+          startTimer();
+        }
+        else if ( key.compare("Up") == 0 ) 
+        {
+          increaseTimerDuration();
+        }
+        else if ( key.compare("Down") == 0 ) 
+        {
+          decreaseTimerDuration();
+        }
 
-    //     vtkInteractorStyleImage::OnKeyDown();
-    // }
+        vtkInteractorStyleImage::OnKeyDown();
+    }
  
 };
 
@@ -224,7 +241,7 @@ int main(int argc, char* argv[])
   // *   Sort and store the DICOM files by volume/frame
   // ***************************************************************/
   // // TO-DO: Fix hardcoded file path
-  std::string path = "E:\\4D-CT\\SORTED\\4D-CT\\TestTube\\PA0\\ST0\\SE1\\DECOMPRESSED\\STANDARD";
+  std::string path = "D:\\Git\\sort_4D-CT_DICOMs\\DICOMs\\SORTED";
 
   // /* 
   // *  First, read in all files in the directory into a vector.
@@ -240,7 +257,7 @@ int main(int argc, char* argv[])
   {
     // For now, the location of the file's number is hardcoded...
     // TO-DO: fix - the string path and the substring indicies are hardcoded... (42 on my laptop, 67 on my desktop)
-    int temp = std::stoi( entry.path().string().substr( 67, entry.path().string().length() - 4 ) );
+    int temp = std::stoi( entry.path().string().substr( 42, entry.path().string().length() - 4 ) );
     dicomDirectoryData.push_back( { temp, entry.path().string() } );
   }
 
@@ -260,7 +277,7 @@ int main(int argc, char* argv[])
 
     // Create a new directory for each volume (**ONLY WORKS ON WINDOWS OS!**)
     std::string num = std::to_string( i+1 );
-    std::string volDir = "E:\\4D-CT\\SORTED\\Volumes\\vol_" + num + "\\";
+    std::string volDir = "D:\\4D-CT Data\\TestTube\\volumes\\vol_" + num + "\\";
     mkdir( volDir.c_str() );
 
     std::vector< std::pair<int, std::string> > temp;
@@ -270,7 +287,7 @@ int main(int argc, char* argv[])
       temp.push_back( { dicomDirectoryData[count].first, dicomDirectoryData[count].second } );
 
       // TO-DO: fix - the string path and the substring indicies are hardcoded... (39 on my laptop, 64 on my desktop)
-      std::string dicomFile = ( dicomDirectoryData[count].second).substr( 65, ( dicomDirectoryData[count].second ).length() );
+      std::string dicomFile = ( dicomDirectoryData[count].second).substr( 39, ( dicomDirectoryData[count].second ).length() );
       std::string srcDir    = dicomDirectoryData[count].second;
 
       std::ifstream src(srcDir.c_str(), std::ios::binary);
@@ -299,7 +316,7 @@ int main(int argc, char* argv[])
   {
     std::cout << "Processing volume #" << (i+1) << "...";
 
-    std::string temp = "E:\\4D-CT\\SORTED\\Volumes\\vol_" + std::to_string( i + 1 );
+    std::string temp = "D:\\4D-CT Data\\TestTube\\volumes\\vol_" + std::to_string( i + 1 );
 
     dicomReader->SetDirectoryName( temp.c_str() );
     dicomReader->Update();
