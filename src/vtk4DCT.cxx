@@ -9,212 +9,33 @@
 
 // TO-DO: Add volume animations                                   - DONE (29-03-2019)
 // TO-DO: Add point picking                                       - DONE (30-03-2019)
-// TO-DO: Control playback with keyboard                          -
-// TO-DO: Display picked points                                   -
-// TO-DO: Track picked points                                     -
+// TO-DO: Control playback with keyboard                          - DONE (02-04-2019)
+// TO-DO: Display picked points                                   - DONE (01-04-2019)
+// TO-DO: Connect points with lines                               - DONE (02-04-2019)
+// TO-DO: Get distance between points                             - DONE (02-04-2019)
+// TO-DO: Track picked points (registration)                      -
 // TO-DO: Quantify changes in distance (or changes in geometry?)  -
 
+// void TimerCallbackFunction ( vtkObject* caller, long unsigned int eventId, void* clientData, void* callData );
+
+#include "vtk4DCT.hxx"
 #include "helperFunctions.hxx"
 #include "interactorStyler.hxx"
-
-// TO-DO: Clean up headers. Move to helperFunctions.hxx
-#include <filesystem>
-namespace fs = std::experimental::filesystem;
-
-#include <vector>
-#include <utility>
-#include <fstream>
-
-#include <vtkProperty.h>
-#include <vtkWindowedSincPolyDataFilter.h>
-
-#include <vtkProgrammableFilter.h>
-#include <vtkCallbackCommand.h>
-#include <vtkCubeSource.h>
-#include <vtkTransform.h>
-#include <vtkTransformPolyDataFilter.h>
-#include <vtkLight.h>
-#include <vtkWorldPointPicker.h>
-#include <vtkRendererCollection.h>
-#include <vtkSphereSource.h>
-
-// ONLY WORKS ON WINDOWS!
-#include <direct.h>
-
-void TimerCallbackFunction ( vtkObject* caller, long unsigned int eventId, void* clientData, void* callData );
-
-// Globals
-unsigned int counter2 = 0;
-unsigned int volCounter = 0;
-unsigned int pointCounter = -1;    // Maximum of 2 points allowed at a time
-unsigned int timerDuration = 200;
-
-bool forward = true;
-bool reverse = false;
-
-// Create a vector for each surface object (saving the volumes proved to be much more difficult...)
-std::vector< vtkSmartPointer<vtkPolyData> > dicomVolumes;
+#include "timerCallback.hxx"
 
 // Function to switch between volumes/frames
-void AdjustPoints2(void* arguments)
-{
-  vtkProgrammableFilter* programmableFilter = static_cast<vtkProgrammableFilter*>(arguments);
+// void AdjustPoints2(void* arguments)
+// {
+//   vtkProgrammableFilter* programmableFilter = static_cast<vtkProgrammableFilter*>(arguments);
 
-  vtkPolyData* inPts = programmableFilter->GetPolyDataInput();
+//   vtkPolyData* inPts = programmableFilter->GetPolyDataInput();
 
-  vtkSmartPointer<vtkPolyData> newPts = vtkSmartPointer<vtkPolyData>::New();
-  newPts = dicomVolumes[volCounter];
+//   vtkSmartPointer<vtkPolyData> newPts = vtkSmartPointer<vtkPolyData>::New();
+//   newPts = dicomVolumes[volCounter];
 
-  programmableFilter->GetPolyDataOutput()->CopyStructure(programmableFilter->GetPolyDataInput());
-  programmableFilter->GetPolyDataOutput()->DeepCopy(newPts);
-}
-
-// Define interaction style
-class myInteractorStyle : public vtkInteractorStyleTrackballCamera
-{
-  public:
-    static myInteractorStyle* New();
-    vtkTypeMacro( myInteractorStyle, vtkInteractorStyleTrackballCamera );
-
-    vtkSmartPointer<vtkActor> point_1_actor, point_2_actor;
- 
-    /*
-    *   Reset the picked points (maximum 2 points at one time).
-    */
-    void resetPointPicking()
-    {
-      if ( pointCounter == 0 )
-      {
-        this->Interactor->GetRenderWindow()->GetRenderers()->GetFirstRenderer()->RemoveActor(point_1_actor);
-      }
-      else if ( pointCounter == 1 )
-      {
-        this->Interactor->GetRenderWindow()->GetRenderers()->GetFirstRenderer()->RemoveActor(point_1_actor);
-        this->Interactor->GetRenderWindow()->GetRenderers()->GetFirstRenderer()->RemoveActor(point_2_actor);
-      }
-      else
-      {
-        std::cout << "No points to remove!\n";
-      }
-    }
-
-    void pauseTimer()
-    {
-      this->Interactor->
-    }
-
-    // /*
-    // *   Increase the timer Duration (slow down the animation).
-    // */
-    // void increaseTimerDuration()
-    // {
-    //   if (timerDuration < 1000 )
-    //   {
-    //     timerDuration += 100;
-    //     std::cout << this->Interactor->GetTimerDuration() << "\n";
-    //     this->Interactor->GetRenderWindow()->Render();
-    //   }
-    // }
-
-    // /*
-    // *   Decrease the timer Duration (speed up the animation).
-    // */
-    // void decreaseTimerDuration()
-    // {
-    //   if (timerDuration > 100 )
-    //   {
-    //     timerDuration -= 100;
-    //     std::cout << this->Interactor->GetTimerDuration() << "\n";
-    //     this->Interactor->GetRenderWindow()->Render();
-    //   }
-    // }
-
-    virtual void OnRightButtonDown() 
-    {
-      // if ( pointCounter < 3 )
-      // {
-        std::cout << "Picking pixel: " << this->Interactor->GetEventPosition()[0] << " " << this->Interactor->GetEventPosition()[1] << std::endl;
-       
-        this->Interactor->GetPicker()->Pick(this->Interactor->GetEventPosition()[0], 
-                          this->Interactor->GetEventPosition()[1], 
-                          0,  // always zero.
-                          this->Interactor->GetRenderWindow()->GetRenderers()->GetFirstRenderer());
-        
-        double picked[3];
-        
-        this->Interactor->GetPicker()->GetPickPosition(picked);
-        
-        std::cout << "Picked value: " << picked[0] << " " << picked[1] << " " << picked[2] << std::endl;
-        
-        pointCounter++;
-
-        //Create a sphere
-        vtkSmartPointer<vtkSphereSource> sphereSource = vtkSmartPointer<vtkSphereSource>::New();
-        sphereSource->SetCenter(picked[0], picked[1], picked[2]);
-        sphereSource->SetRadius(1.0);
-
-        //Create a mapper and actor
-        vtkSmartPointer<vtkPolyDataMapper> mapper = vtkSmartPointer<vtkPolyDataMapper>::New();
-        mapper->SetInputConnection(sphereSource->GetOutputPort());
-
-        point_1_actor = vtkSmartPointer<vtkActor>::New();
-        point_1_actor->SetMapper(mapper);
-        this->Interactor->GetRenderWindow()->GetRenderers()->GetFirstRenderer()->AddActor(point_1_actor);
-
-        // if ( pointCounter == 0 )
-        // {
-        //   point_1_actor = vtkSmartPointer<vtkActor>::New();
-        //   point_1_actor->SetMapper(mapper);
-        //   this->Interactor->GetRenderWindow()->GetRenderers()->GetFirstRenderer()->AddActor(point_1_actor);
-        // }
-        // else if ( pointCounter == 1 )
-        // {
-        //   point_2_actor = vtkSmartPointer<vtkActor>::New();
-        //   point_2_actor->SetMapper(mapper);
-        //   this->Interactor->GetRenderWindow()->GetRenderers()->GetFirstRenderer()->AddActor(point_2_actor);
-        // }        
-
-        // Forward events
-        vtkInteractorStyleTrackballCamera::OnRightButtonDown();
-
-        pointCounter++;
-      // }
-      // else
-      // {
-      //   std::cout << "Maximum number of points selected. Use 'r' to reset the points.\n";
-      // }
-      
-    }
-
-    virtual void OnKeyDown()
-    {
-        std::string key = this->GetInteractor()->GetKeySym();
-
-        if ( key.compare("r") == 0 ) 
-        {
-          resetPointPicking();
-        }
-        else if ( key.compare("p") == 0 )
-        {
-          pauseTimer();
-        }
-        else if ( key.compare("s") == 0 )
-        {
-          startTimer();
-        }
-        else if ( key.compare("Up") == 0 ) 
-        {
-          increaseTimerDuration();
-        }
-        else if ( key.compare("Down") == 0 ) 
-        {
-          decreaseTimerDuration();
-        }
-
-        vtkInteractorStyleImage::OnKeyDown();
-    }
- 
-};
+//   programmableFilter->GetPolyDataOutput()->CopyStructure(programmableFilter->GetPolyDataInput());
+//   programmableFilter->GetPolyDataOutput()->DeepCopy(newPts);
+// }
 
 vtkStandardNewMacro(myInteractorStyle);
 
@@ -237,27 +58,30 @@ int main(int argc, char* argv[])
   vtkSmartPointer<vtkImageData>        segImage      = vtkSmartPointer<vtkImageData>::New();
 
 // TO-DO: Move code below to a new function
-  // /***************************************************************
-  // *   Sort and store the DICOM files by volume/frame
-  // ***************************************************************/
-  // // TO-DO: Fix hardcoded file path
-  std::string path = "D:\\Git\\sort_4D-CT_DICOMs\\DICOMs\\SORTED";
+  /***************************************************************
+  *   Sort and store the DICOM files by volume/frame
+  ***************************************************************/
+  // TO-DO: Fix hardcoded file path
+  std::string path = "D:\\Git\\sort_4D-CT_DICOMs\\DICOMs\\Test Tube\\SORTED";
+  // std::string path = "D:\\Git\\sort_4D-CT_DICOMs\\DICOMs\\Two Spheres\\DECOMP\\SORTED";
 
-  // /* 
-  // *  First, read in all files in the directory into a vector.
-  // *  Next, sort the vector into ascending order. When you read in the directory,
-  // *   the files aren't in ascending order (i.e. 1,2,3,...,1280). Instead, they
-  // *   are ordered by the first number in the file name (i.e. 1,10,100,1000,...).
-  // *  Create a vector to hold each file's path and number.
-  // */
+  /* 
+  *  First, read in all files in the directory into a vector.
+  *  Next, sort the vector into ascending order. When you read in the directory,
+  *   the files aren't in ascending order (i.e. 1,2,3,...,1280). Instead, they
+  *   are ordered by the first number in the file name (i.e. 1,10,100,1000,...).
+  *  Create a vector to hold each file's path and number.
+  */
   std::cout << "\n***Reading and sorting 4D DICOM images***\n";
   std::vector< std::pair<int, std::string> > dicomDirectoryData;
 
   for ( const auto & entry : fs::directory_iterator( path ) )
   {
+    // std::cout << std::stoi( entry.path().string().substr( 61, entry.path().string().length() - 8 ) ) << " ";
     // For now, the location of the file's number is hardcoded...
-    // TO-DO: fix - the string path and the substring indicies are hardcoded... (42 on my laptop, 67 on my desktop)
-    int temp = std::stoi( entry.path().string().substr( 42, entry.path().string().length() - 4 ) );
+    // TO-DO: fix - the string path and the substring indicies are hardcoded... (52 on my laptop, 67 on my desktop)
+    // 61 for sphere data on laptop
+    int temp = std::stoi( entry.path().string().substr( 52, entry.path().string().length() - 4 ) );
     dicomDirectoryData.push_back( { temp, entry.path().string() } );
   }
 
@@ -271,22 +95,25 @@ int main(int argc, char* argv[])
 
   int count = 0;
 
-  for ( int i = 0; i < 10; i++ )
+  for ( int i = 0; i < 5; i++ )
   {    
     std::cout << "Reading DICOMs for volume #" << (i+1) << "...";
 
     // Create a new directory for each volume (**ONLY WORKS ON WINDOWS OS!**)
     std::string num = std::to_string( i+1 );
     std::string volDir = "D:\\4D-CT Data\\TestTube\\volumes\\vol_" + num + "\\";
+    // std::string volDir = "D:\\4D-CT Data\\Spheres\\TwoSpheres-4DCT\\volumes\\vol_" + num + "\\";
     mkdir( volDir.c_str() );
 
     std::vector< std::pair<int, std::string> > temp;
 
-    for ( int j = 0; j < 16 && count < 160; j++, count++ )
+    for ( int j = 0; j < 16 && count < 80; j++, count++ )
     {
       temp.push_back( { dicomDirectoryData[count].first, dicomDirectoryData[count].second } );
 
       // TO-DO: fix - the string path and the substring indicies are hardcoded... (39 on my laptop, 64 on my desktop)
+      // 58 for sphere data on laptop
+      // std::cout << (dicomDirectoryData[count].second).substr( 58, ( dicomDirectoryData[count].second ).length()) << " ";
       std::string dicomFile = ( dicomDirectoryData[count].second).substr( 39, ( dicomDirectoryData[count].second ).length() );
       std::string srcDir    = dicomDirectoryData[count].second;
 
@@ -304,6 +131,8 @@ int main(int argc, char* argv[])
   /***************************************************************
   *   Process each volume and save results into a vector
   ***************************************************************/
+  // Experiment with various edge detections + filters + segmentations?
+
   std::cout << "\n***Processing the volumes***\n";
 
   // First, sort the slices of each volume into ascending order
@@ -317,6 +146,7 @@ int main(int argc, char* argv[])
     std::cout << "Processing volume #" << (i+1) << "...";
 
     std::string temp = "D:\\4D-CT Data\\TestTube\\volumes\\vol_" + std::to_string( i + 1 );
+    // std::string temp = "D:\\4D-CT Data\\Spheres\\TwoSpheres-4DCT\\volumes\\vol_" + std::to_string( i + 1 );
 
     dicomReader->SetDirectoryName( temp.c_str() );
     dicomReader->Update();
@@ -334,8 +164,8 @@ int main(int argc, char* argv[])
     /***************************************************************
     *   Segment the input image
     ***************************************************************/
-    // Perform segmentation to extract bone
-    int lowerThresh = -800, upperThresh = 500;
+    // Perform segmentation (-800 to 500 for entire device)
+    int lowerThresh = -200, upperThresh = 500;
     double isoValue = 50.0;
 
     // Apply the global threshold
@@ -355,52 +185,71 @@ int main(int argc, char* argv[])
     surface->ComputeNormalsOn();
     surface->SetValue( 0, isoValue );
 
-    // Add decimation?
+    // Reduce the number of triangles by half to speed up computation
+    vtkSmartPointer<vtkDecimatePro> decimate = vtkSmartPointer<vtkDecimatePro>::New();
+    decimate->SetInputConnection( surface->GetOutputPort() );
+    decimate->SetTargetReduction( 0.5 );
+    decimate->Update();
 
     // Smooth the surface using Taubin smoothing
     vtkSmartPointer<vtkWindowedSincPolyDataFilter> smoother = vtkSmartPointer<vtkWindowedSincPolyDataFilter>::New();
-    smoother->SetInputConnection( surface->GetOutputPort() );
-    smoother->SetNumberOfIterations( 10 );
+    smoother->SetInputConnection( decimate->GetOutputPort() );
+    smoother->SetNumberOfIterations( 5 );
     smoother->BoundarySmoothingOff();
     smoother->FeatureEdgeSmoothingOff();
-    smoother->SetFeatureAngle( 90.0 );
+    smoother->SetFeatureAngle( 75.0 );
     smoother->SetPassBand( 0.01 );
     smoother->NonManifoldSmoothingOn();
     smoother->NormalizeCoordinatesOn();
     smoother->Update();
 
+// Fill holes looks bad!
+    // Fill holes in the surface. Hole size is represented as a radius to the bounding circumsphere containing the hole.
+    // vtkSmartPointer<vtkFillHolesFilter> fillHolesFilter =
+    // vtkSmartPointer<vtkFillHolesFilter>::New();
+    // fillHolesFilter->SetInputData(smoother->GetOutput());
+    // fillHolesFilter->SetHoleSize(10000000.0);   // limit the hole size to be filled
+    // fillHolesFilter->Update();
+
+    // Add the volume to the volume vector
     dicomVolumes.push_back( vtkSmartPointer<vtkPolyData>::New() );
-    dicomVolumes[i] = smoother->GetOutput();
+    dicomVolumes[i] = surface->GetOutput();
 
     std::cout << "Done! \n";
-
-    // Test Rendering
-    // if ( i == 3 )
-    // {
-    //   vtkSmartPointer<vtkRenderer> renderer = vtkSmartPointer<vtkRenderer>::New();
-    //   renderer->SetBackground( 0, 0, 0 );
-
-    //   vtkSmartPointer<vtkRenderWindow> renderWindow = vtkSmartPointer<vtkRenderWindow>::New();
-    //   renderWindow->AddRenderer( renderer );
-    //   vtkSmartPointer<vtkRenderWindowInteractor> interactor = vtkSmartPointer<vtkRenderWindowInteractor>::New();
-    //   interactor->SetRenderWindow( renderWindow );
-
-    //   vtkSmartPointer<vtkPolyDataMapper> mapper = vtkSmartPointer<vtkPolyDataMapper>::New();
-    //   mapper->SetInputConnection( smoother->GetOutputPort() );
-    //   mapper->ScalarVisibilityOff();
-
-    //   vtkSmartPointer<vtkActor> actor = vtkSmartPointer<vtkActor>::New();
-    //   actor->SetMapper( mapper );
-
-    //   renderer->AddActor( actor );
-
-    //   renderWindow->Render();
-    //   interactor->Start();
-    // }
   }  
 
-  vtkSmartPointer<vtkWorldPointPicker> worldPointPicker = vtkSmartPointer<vtkWorldPointPicker>::New();
+  // Now register the first frame onto the remaining volumes
+  /***************************************************************
+  *   Perform ICP registration
+  ***************************************************************/
+  // Perform the registration between each frame
+  // Start at the first frame (registration onto itself) to keep the vector length consistent. This will be helpful when rendering.
+  for ( int i = 0; i < dicomVolumes.size(); i++ )
+  {
+    vtkSmartPointer<vtkIterativeClosestPointTransform> icp = vtkSmartPointer<vtkIterativeClosestPointTransform>::New();
+    icp->SetSource( dicomVolumes[0] );
+    icp->SetTarget( dicomVolumes[i] );
+    icp->SetMaximumNumberOfIterations( 75 );
+    icp->GetLandmarkTransform()->SetModeToRigidBody();
+    icp->StartByMatchingCentroidsOn();
+    icp->Update();
 
+    // Output the transformation matrix. Need to convert the vtkMatrix4x4 matrix to a vtkAbstractTransform.
+    vtkSmartPointer<vtkMatrix4x4> m = icp->GetMatrix();
+
+    vtkSmartPointer<vtkTransform> transform = vtkSmartPointer<vtkTransform>::New(); 
+    transform->SetMatrix( m );
+
+    tMatricies.push_back( transform );
+
+    // vtkSmartPointer<vtkTransform> icpTransformFilter = vtkSmartPointer<vtkTransform>::New();
+    // icpTransformFilter->SetMatrix( m );
+    // icpTransformFilter->Update();
+  }
+
+  /***************************************************************
+  *   Create the scene
+  ***************************************************************/
   // Create a cube surface
   vtkSmartPointer<vtkCubeSource> cubeSource = vtkSmartPointer<vtkCubeSource>::New();
   cubeSource->SetXLength(125);
@@ -422,6 +271,7 @@ int main(int argc, char* argv[])
   vtkSmartPointer<vtkPolyDataMapper> cubeMapper = vtkSmartPointer<vtkPolyDataMapper>::New();
   cubeMapper->SetInputData(rotationFilter->GetOutput());
 
+// TO-DO: Play with colouring
   vtkSmartPointer<vtkActor> cubeActor = vtkSmartPointer<vtkActor>::New();
   cubeActor->SetMapper(cubeMapper);
   cubeActor->GetProperty()->SetColor(0.8,0.8,0.4);
@@ -430,73 +280,40 @@ int main(int argc, char* argv[])
   // cubeActor->GetProperty()->SetAmbient(0.2);
   // cubeActor->GetProperty()->SetSpecular(0.8);
 
-  vtkSmartPointer<vtkProgrammableFilter> programmableFilter = vtkSmartPointer<vtkProgrammableFilter>::New();
-  programmableFilter->SetInputData(dicomVolumes[volCounter]);
-  programmableFilter->SetExecuteMethod(AdjustPoints2, programmableFilter);
+  // programmableFilter->SetInputData( dicomVolumes[volumeCounter] );
+  // programmableFilter->SetExecuteMethod( AdjustPoints2, programmableFilter );
 
   // Create a mapper and actor
-  vtkSmartPointer<vtkPolyDataMapper> mapper = vtkSmartPointer<vtkPolyDataMapper>::New();
-  mapper->SetInputConnection(programmableFilter->GetOutputPort());
-  vtkSmartPointer<vtkActor> actor = vtkSmartPointer<vtkActor>::New();
-  actor->SetMapper(mapper);
+  for ( int i = 0; i < dicomVolumes.size(); i++ )
+  {
+    vtkSmartPointer<vtkPolyDataMapper> mapper = vtkSmartPointer<vtkPolyDataMapper>::New();
+    mapper->SetInputData( dicomVolumes[i] );
+
+    vtkSmartPointer<vtkActor> actor = vtkSmartPointer<vtkActor>::New();
+    actor->SetMapper( mapper );
+
+    volumeActors.push_back( actor );
+  }
 
   // Create a renderer, render window, and interactor
   vtkSmartPointer<vtkRenderer> renderer = vtkSmartPointer<vtkRenderer>::New();
   vtkSmartPointer<vtkRenderWindow> renderWindow = vtkSmartPointer<vtkRenderWindow>::New();
-  renderWindow->AddRenderer(renderer);
+  renderWindow->AddRenderer( renderer );
 
   vtkSmartPointer<vtkRenderWindowInteractor> renderWindowInteractor = vtkSmartPointer<vtkRenderWindowInteractor>::New();
-  renderWindowInteractor->SetRenderWindow(renderWindow);
+  renderWindowInteractor->SetRenderWindow( renderWindow );
 
   // Initialize must be called prior to creating timer events.
   renderWindowInteractor->Initialize();
   renderWindowInteractor->EnableRenderOn();
-  renderWindowInteractor->CreateRepeatingTimer( 200 );
-
-  vtkSmartPointer<vtkCallbackCommand> timerCallback = vtkSmartPointer<vtkCallbackCommand>::New();
-  timerCallback->SetCallback( TimerCallbackFunction );
-  timerCallback->SetClientData( programmableFilter );
-
-  renderWindowInteractor->AddObserver ( vtkCommand::TimerEvent, timerCallback );
-  renderWindowInteractor->SetPicker( worldPointPicker );
 
   vtkSmartPointer<myInteractorStyle> style = vtkSmartPointer<myInteractorStyle>::New();
   renderWindowInteractor->SetInteractorStyle( style );
 
-  // Setup a custom interactor
-  // vtkSmartPointer<myInteractorStyler> myInteractorStyle = vtkSmartPointer<myInteractorStyler>::New();
-  // myInteractorStyle->setRenderWindow( renderWindow );
-  // myInteractorStyle->setTimer( renderWindowInteractor );
-
-  // renderWindowInteractor->SetInteractorStyle( myInteractorStyle );
-
   // Add the actor to the scene
-  renderer->AddActor(actor);
-  renderer->AddActor(cubeActor);
-  renderer->SetBackground(0,0,0); // Background color black
-
-  // Add another light source
-  // vtkSmartPointer<vtkLight> light = vtkSmartPointer<vtkLight>::New();
-  // light->SetPositional(1);
-  // light->SetPosition(70, 50, 25);
-  // light->SetColor(1.0, 1.0, 1.0);
-  // light->SetIntensity(0.8);
-
-  // vtkSmartPointer<vtkLight> light2 = vtkSmartPointer<vtkLight>::New();
-  // light2->SetPositional(1);
-  // light2->SetPosition(100, 0, 0);
-  // light2->SetColor(1.0, 1.0, 1.0);
-  // light2->SetIntensity(0.8);
-
-  //   vtkSmartPointer<vtkLight> light3 = vtkSmartPointer<vtkLight>::New();
-  // light3->SetPositional(1);
-  // light3->SetPosition(0, 0, 100);
-  // light3->SetColor(1.0, 1.0, 1.0);
-  // light3->SetIntensity(0.8);
-
-  // renderer->AddLight(light);
-  // renderer->AddLight(light2);
-  // renderer->AddLight(light3);
+  renderer->AddActor( volumeActors[0] );
+  renderer->AddActor( cubeActor );
+  renderer->SetBackground( 1, 1, 1 ); // Background color white
 
   // Render and interact
   renderWindow->Render();
@@ -505,32 +322,30 @@ int main(int argc, char* argv[])
   return EXIT_SUCCESS;
 }
 
-void TimerCallbackFunction ( vtkObject* caller, long unsigned int vtkNotUsed(eventId), void* clientData, void* vtkNotUsed(callData) )
-{
-  if (volCounter <= 0)
-  {
-    forward = true;
-    reverse = false;
-  }
-  else if (volCounter >= 9)
-  {
-    reverse = true;
-    forward = false;
-  }
+// void TimerCallbackFunction ( vtkObject* caller, long unsigned int vtkNotUsed(eventId), void* clientData, void* vtkNotUsed(callData) )
+// {
+//   // Once we hit the last volume, play the animation in reverse.
+//   if ( volCounter <= 0 )
+//   {
+//     forward = true;
+//     reverse = false;
+//   }
+//   else if ( volCounter >= 4 )
+//   {
+//     reverse = true;
+//     forward = false;
+//   }
 
-  vtkSmartPointer<vtkProgrammableFilter> programmableFilter = static_cast<vtkProgrammableFilter*>(clientData);
+//   vtkSmartPointer<vtkProgrammableFilter> programmableFilter = static_cast<vtkProgrammableFilter*>(clientData);
 
-  vtkRenderWindowInteractor *iren = static_cast<vtkRenderWindowInteractor*>(caller);
+//   vtkRenderWindowInteractor *iren = static_cast<vtkRenderWindowInteractor*>(caller);
 
-  programmableFilter->Modified();
+//   programmableFilter->Modified();
 
-  iren->SetTimerDuration( timerDuration );
-  iren->Render();
+//   iren->Render();
 
-  counter2++;
-
-  if (forward)
-    volCounter++;
-  else if (reverse)
-    volCounter--;
-}
+//   if ( forward )
+//     volCounter++;
+//   else if ( reverse )
+//     volCounter--;
+// }
