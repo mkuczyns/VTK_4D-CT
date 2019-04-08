@@ -21,21 +21,6 @@
 #include "vtk4DCT.hxx"
 #include "helperFunctions.hxx"
 #include "interactorStyler.hxx"
-#include "timerCallback.hxx"
-
-// Function to switch between volumes/frames
-// void AdjustPoints2(void* arguments)
-// {
-//   vtkProgrammableFilter* programmableFilter = static_cast<vtkProgrammableFilter*>(arguments);
-
-//   vtkPolyData* inPts = programmableFilter->GetPolyDataInput();
-
-//   vtkSmartPointer<vtkPolyData> newPts = vtkSmartPointer<vtkPolyData>::New();
-//   newPts = dicomVolumes[volCounter];
-
-//   programmableFilter->GetPolyDataOutput()->CopyStructure(programmableFilter->GetPolyDataInput());
-//   programmableFilter->GetPolyDataOutput()->DeepCopy(newPts);
-// }
 
 vtkStandardNewMacro(myInteractorStyle);
 
@@ -52,6 +37,10 @@ int main(int argc, char* argv[])
   //     return EXIT_FAILURE;
   // }
 
+  typedef std::chrono::high_resolution_clock Time;
+  typedef std::chrono::duration<float> fsec;
+  auto t0 = Time::now();
+
   vtkSmartPointer<vtkDICOMImageReader> dicomReader   = vtkSmartPointer<vtkDICOMImageReader>::New();
   vtkSmartPointer<vtkImageData>        volume        = vtkSmartPointer<vtkImageData>::New();
   vtkSmartPointer<vtkImageData>        gaussianImage = vtkSmartPointer<vtkImageData>::New();
@@ -62,8 +51,9 @@ int main(int argc, char* argv[])
   *   Sort and store the DICOM files by volume/frame
   ***************************************************************/
   // TO-DO: Fix hardcoded file path
-  std::string path = "D:\\Git\\sort_4D-CT_DICOMs\\DICOMs\\Test Tube\\SORTED";
+  // std::string path = "D:\\Git\\sort_4D-CT_DICOMs\\DICOMs\\Test Tube\\SORTED";
   // std::string path = "D:\\Git\\sort_4D-CT_DICOMs\\DICOMs\\Two Spheres\\DECOMP\\SORTED";
+  std::string path = "E:\\Git\\VTK_4D-CT\\img\\test tube\\sorted";
 
   /* 
   *  First, read in all files in the directory into a vector.
@@ -79,9 +69,9 @@ int main(int argc, char* argv[])
   {
     // std::cout << std::stoi( entry.path().string().substr( 61, entry.path().string().length() - 8 ) ) << " ";
     // For now, the location of the file's number is hardcoded...
-    // TO-DO: fix - the string path and the substring indicies are hardcoded... (52 on my laptop, 67 on my desktop)
+    // TO-DO: fix - the string path and the substring indicies are hardcoded... (52 on my laptop, 42 on my desktop)
     // 61 for sphere data on laptop
-    int temp = std::stoi( entry.path().string().substr( 52, entry.path().string().length() - 4 ) );
+    int temp = std::stoi( entry.path().string().substr( 41, entry.path().string().length() - 4 ) );
     dicomDirectoryData.push_back( { temp, entry.path().string() } );
   }
 
@@ -95,26 +85,27 @@ int main(int argc, char* argv[])
 
   int count = 0;
 
-  for ( int i = 0; i < 5; i++ )
+  for ( int i = 0; i < 80; i++ )
   {    
     std::cout << "Reading DICOMs for volume #" << (i+1) << "...";
 
     // Create a new directory for each volume (**ONLY WORKS ON WINDOWS OS!**)
     std::string num = std::to_string( i+1 );
-    std::string volDir = "D:\\4D-CT Data\\TestTube\\volumes\\vol_" + num + "\\";
+    // std::string volDir = "D:\\4D-CT Data\\TestTube\\volumes\\vol_" + num + "\\";
     // std::string volDir = "D:\\4D-CT Data\\Spheres\\TwoSpheres-4DCT\\volumes\\vol_" + num + "\\";
+    std::string volDir = "E:\\Git\\VTK_4D-CT\\img\\test tube\\volumes\\vol_" + num + "\\";
     mkdir( volDir.c_str() );
 
     std::vector< std::pair<int, std::string> > temp;
 
-    for ( int j = 0; j < 16 && count < 80; j++, count++ )
+    for ( int j = 0; j < 16 && count < 1280; j++, count++ )
     {
       temp.push_back( { dicomDirectoryData[count].first, dicomDirectoryData[count].second } );
 
-      // TO-DO: fix - the string path and the substring indicies are hardcoded... (39 on my laptop, 64 on my desktop)
+      // TO-DO: fix - the string path and the substring indicies are hardcoded... (39 on my laptop, 38 on my desktop)
       // 58 for sphere data on laptop
       // std::cout << (dicomDirectoryData[count].second).substr( 58, ( dicomDirectoryData[count].second ).length()) << " ";
-      std::string dicomFile = ( dicomDirectoryData[count].second).substr( 39, ( dicomDirectoryData[count].second ).length() );
+      std::string dicomFile = ( dicomDirectoryData[count].second).substr( 38, ( dicomDirectoryData[count].second ).length() );
       std::string srcDir    = dicomDirectoryData[count].second;
 
       std::ifstream src(srcDir.c_str(), std::ios::binary);
@@ -145,8 +136,9 @@ int main(int argc, char* argv[])
   {
     std::cout << "Processing volume #" << (i+1) << "...";
 
-    std::string temp = "D:\\4D-CT Data\\TestTube\\volumes\\vol_" + std::to_string( i + 1 );
+    // std::string temp = "D:\\4D-CT Data\\TestTube\\volumes\\vol_" + std::to_string( i + 1 );
     // std::string temp = "D:\\4D-CT Data\\Spheres\\TwoSpheres-4DCT\\volumes\\vol_" + std::to_string( i + 1 );
+    std::string temp = "E:\\Git\\VTK_4D-CT\\img\\test tube\\volumes\\vol_" + std::to_string( i + 1 );
 
     dicomReader->SetDirectoryName( temp.c_str() );
     dicomReader->Update();
@@ -165,7 +157,7 @@ int main(int argc, char* argv[])
     *   Segment the input image
     ***************************************************************/
     // Perform segmentation (-800 to 500 for entire device)
-    int lowerThresh = -200, upperThresh = 500;
+    int lowerThresh = -125, upperThresh = 500;
     double isoValue = 50.0;
 
     // Apply the global threshold
@@ -203,17 +195,16 @@ int main(int argc, char* argv[])
     smoother->NormalizeCoordinatesOn();
     smoother->Update();
 
-// Fill holes looks bad!
     // Fill holes in the surface. Hole size is represented as a radius to the bounding circumsphere containing the hole.
-    // vtkSmartPointer<vtkFillHolesFilter> fillHolesFilter =
-    // vtkSmartPointer<vtkFillHolesFilter>::New();
-    // fillHolesFilter->SetInputData(smoother->GetOutput());
-    // fillHolesFilter->SetHoleSize(10000000.0);   // limit the hole size to be filled
-    // fillHolesFilter->Update();
+    vtkSmartPointer<vtkFillHolesFilter> fillHolesFilter =
+    vtkSmartPointer<vtkFillHolesFilter>::New();
+    fillHolesFilter->SetInputData(smoother->GetOutput());
+    fillHolesFilter->SetHoleSize(10000000.0);   // limit the hole size to be filled
+    fillHolesFilter->Update();
 
     // Add the volume to the volume vector
     dicomVolumes.push_back( vtkSmartPointer<vtkPolyData>::New() );
-    dicomVolumes[i] = surface->GetOutput();
+    dicomVolumes[i] = fillHolesFilter->GetOutput();
 
     std::cout << "Done! \n";
   }  
@@ -229,47 +220,70 @@ int main(int argc, char* argv[])
     vtkSmartPointer<vtkIterativeClosestPointTransform> icp = vtkSmartPointer<vtkIterativeClosestPointTransform>::New();
     icp->SetSource( dicomVolumes[0] );
     icp->SetTarget( dicomVolumes[i] );
-    icp->SetMaximumNumberOfIterations( 75 );
-    icp->GetLandmarkTransform()->SetModeToRigidBody();
+    icp->SetMaximumNumberOfIterations( 30 );
+    icp->GetLandmarkTransform()->SetModeToAffine();
     icp->StartByMatchingCentroidsOn();
     icp->Update();
-
-    // Output the transformation matrix. Need to convert the vtkMatrix4x4 matrix to a vtkAbstractTransform.
-    vtkSmartPointer<vtkMatrix4x4> m = icp->GetMatrix();
-
-    vtkSmartPointer<vtkTransform> transform = vtkSmartPointer<vtkTransform>::New(); 
-    transform->SetMatrix( m );
-
-    tMatricies.push_back( transform );
-
-    // vtkSmartPointer<vtkTransform> icpTransformFilter = vtkSmartPointer<vtkTransform>::New();
-    // icpTransformFilter->SetMatrix( m );
-    // icpTransformFilter->Update();
+    
+    icpRegistrations.push_back( icp );
   }
+
+// Get a line at the bottom of each volume. The angle will be calculated as the angle between the line in volume 1 and the line from all other volumes.
+  // Get the geometry bounding box of the first volume (Xmin, Xmax, Ymin, Ymax, Zmin, Zmax)
+  // Transform this line onto all other volumes
+  double* bounds = dicomVolumes[0]->GetBounds();
+
+  vtkSmartPointer<vtkLineSource> lineSource = vtkSmartPointer<vtkLineSource>::New();
+
+  double tempArray1[3] = { ( ( bounds[0] + bounds[1] ) /2 ), bounds[2], bounds[4] + 12 }; 
+  double tempArray2[3] = { ( ( bounds[0] + bounds[1] ) /2 ), bounds[2], bounds[5] + 150 };  // Extend the Zmax coordinate so each line always intersects with the first line
+
+  lineSource->SetPoint1( tempArray1 );
+  lineSource->SetPoint2( tempArray2 );
+  lineSource->Update();
+
+  firstAngleLine = lineSource;
+
+  //Create a new actor for the first angle line (always stays on!)
+  vtkSmartPointer<vtkPolyDataMapper> firstLineMapper = vtkSmartPointer<vtkPolyDataMapper>::New();
+  firstLineMapper->SetInputData( firstAngleLine->GetOutput() );
+
+  firsAngleLineActor = vtkSmartPointer<vtkActor>::New();
+  firsAngleLineActor->SetMapper( firstLineMapper );
+  firsAngleLineActor->GetProperty()->SetColor(0.0, 1.0, 0.0);
+  firsAngleLineActor->GetProperty()->SetLineWidth(8);
+
+  cubeLine = vtkSmartPointer<vtkCubeSource>::New();
+  cubeLine->SetXLength(125);
+  cubeLine->SetYLength(1);
+  cubeLine->SetZLength(200);
+  cubeLine->SetCenter(firstAngleLine->GetPoint1()[0], firstAngleLine->GetPoint1()[1] - 0.5, 25);
+  cubeLine->Update();
+
+  vtkSmartPointer<vtkPolyDataMapper> cubeLineMapper = vtkSmartPointer<vtkPolyDataMapper>::New();
+  cubeLineMapper->SetInputData(cubeLine->GetOutput());
+
+// TO-DO: Play with colouring
+  vtkSmartPointer<vtkActor> cubeLineActor = vtkSmartPointer<vtkActor>::New();
+  cubeLineActor->SetMapper(cubeLineMapper);
+  cubeLineActor->GetProperty()->SetColor(0.5, 0.5, 0.5);
+  cubeLineActor->GetProperty()->ShadingOn();
 
   /***************************************************************
   *   Create the scene
   ***************************************************************/
   // Create a cube surface
-  vtkSmartPointer<vtkCubeSource> cubeSource = vtkSmartPointer<vtkCubeSource>::New();
+  cubeSource = vtkSmartPointer<vtkCubeSource>::New();
   cubeSource->SetXLength(125);
   cubeSource->SetYLength(10);
   cubeSource->SetZLength(150);
-  cubeSource->SetCenter(70,0,25);
+  cubeSource->SetCenter(70,10,25);
   cubeSource->Update();
 
-  vtkPolyData* cube = cubeSource->GetOutput();
-
-  vtkSmartPointer<vtkTransform> rotation = vtkSmartPointer<vtkTransform>::New();
-  rotation->RotateX(10);
-
-  vtkSmartPointer<vtkTransformPolyDataFilter> rotationFilter = vtkSmartPointer<vtkTransformPolyDataFilter>::New();
-  rotationFilter->SetInputData(cube);
-  rotationFilter->SetTransform(rotation);
-  rotationFilter->Update();
+  vtkSmartPointer<vtkPolyData> cube = cubeSource->GetOutput();
 
   vtkSmartPointer<vtkPolyDataMapper> cubeMapper = vtkSmartPointer<vtkPolyDataMapper>::New();
-  cubeMapper->SetInputData(rotationFilter->GetOutput());
+  cubeMapper->SetInputData(cubeSource->GetOutput());
 
 // TO-DO: Play with colouring
   vtkSmartPointer<vtkActor> cubeActor = vtkSmartPointer<vtkActor>::New();
@@ -280,10 +294,7 @@ int main(int argc, char* argv[])
   // cubeActor->GetProperty()->SetAmbient(0.2);
   // cubeActor->GetProperty()->SetSpecular(0.8);
 
-  // programmableFilter->SetInputData( dicomVolumes[volumeCounter] );
-  // programmableFilter->SetExecuteMethod( AdjustPoints2, programmableFilter );
-
-  // Create a mapper and actor
+  // Create a mapper and actor for each volume
   for ( int i = 0; i < dicomVolumes.size(); i++ )
   {
     vtkSmartPointer<vtkPolyDataMapper> mapper = vtkSmartPointer<vtkPolyDataMapper>::New();
@@ -291,6 +302,9 @@ int main(int argc, char* argv[])
 
     vtkSmartPointer<vtkActor> actor = vtkSmartPointer<vtkActor>::New();
     actor->SetMapper( mapper );
+
+    actor->GetProperty()->SetColor(0.5, 0.5, 1.0);
+    actor->GetProperty()->SetOpacity(0.85);
 
     volumeActors.push_back( actor );
   }
@@ -312,8 +326,12 @@ int main(int argc, char* argv[])
 
   // Add the actor to the scene
   renderer->AddActor( volumeActors[0] );
-  renderer->AddActor( cubeActor );
-  renderer->SetBackground( 1, 1, 1 ); // Background color white
+  renderer->AddActor( cubeLineActor );
+  renderer->SetBackground( 0.0, 0.4, 0.6 ); // Background color white
+
+  auto t1 = Time::now();
+  fsec fs = t1 - t0;
+  compTime = std::chrono::duration_cast<fsec>(fs).count();
 
   // Render and interact
   renderWindow->Render();
@@ -321,31 +339,3 @@ int main(int argc, char* argv[])
 
   return EXIT_SUCCESS;
 }
-
-// void TimerCallbackFunction ( vtkObject* caller, long unsigned int vtkNotUsed(eventId), void* clientData, void* vtkNotUsed(callData) )
-// {
-//   // Once we hit the last volume, play the animation in reverse.
-//   if ( volCounter <= 0 )
-//   {
-//     forward = true;
-//     reverse = false;
-//   }
-//   else if ( volCounter >= 4 )
-//   {
-//     reverse = true;
-//     forward = false;
-//   }
-
-//   vtkSmartPointer<vtkProgrammableFilter> programmableFilter = static_cast<vtkProgrammableFilter*>(clientData);
-
-//   vtkRenderWindowInteractor *iren = static_cast<vtkRenderWindowInteractor*>(caller);
-
-//   programmableFilter->Modified();
-
-//   iren->Render();
-
-//   if ( forward )
-//     volCounter++;
-//   else if ( reverse )
-//     volCounter--;
-// }

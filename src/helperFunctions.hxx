@@ -55,6 +55,7 @@
 #include <vtkColorTransferFunction.h>
 #include <vtkPiecewiseFunction.h>
 #include <vtkMetaImageReader.h>
+#include <vtkCamera.h>
 
 
 

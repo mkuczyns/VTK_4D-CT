@@ -19,7 +19,6 @@ class vtkTimerCallback2 : public vtkCommand
     static vtkTimerCallback2 *New()
     {
       vtkTimerCallback2 *cb = new vtkTimerCallback2;
-      cb->TimerCount = 0;
       return cb;
     }
 
@@ -30,7 +29,7 @@ class vtkTimerCallback2 : public vtkCommand
         forward = true;
         reverse = false;
       }
-      else if ( volumeCounter >= 4 )
+      else if ( volumeCounter >= 79 )
       {
         reverse = true;
         forward = false;
@@ -47,70 +46,94 @@ class vtkTimerCallback2 : public vtkCommand
       
       vtkRenderWindowInteractor *iren = vtkRenderWindowInteractor::SafeDownCast(caller);
       
-      iren->GetRenderWindow()->GetRenderers()->GetFirstRenderer()->RemoveActor( actor );
-      actor = volumeActors[volumeCounter];
+      /* 
+      *   Remove current actors
+      */
 
-    if (forward)
-    {
-      for ( int i = 0; i < pointActors.size(); i++ )
+      // Volumes
+      iren->GetRenderWindow()->GetRenderers()->GetFirstRenderer()->RemoveActor( timerVolumeActor );
+      timerVolumeActor = volumeActors[volumeCounter];
+
+      // Angle lines
+      if ( angleLineActors.size() != 0 )
       {
-          iren->GetRenderWindow()->GetRenderers()->GetFirstRenderer()->RemoveActor( pointActors[i] );
+        iren->GetRenderWindow()->GetRenderers()->GetFirstRenderer()->RemoveActor( timerAngleLineActor );
+        timerAngleLineActor = angleLineActors[volumeCounter];
       }
 
-      for ( int i = 0; i < pointActors.size(); i++ )
+      if ( angleTextActors.size() != 0 )
       {
-          vtkSmartPointer<vtkTransformPolyDataFilter> transformFilter = vtkSmartPointer<vtkTransformPolyDataFilter>::New();
-          transformFilter->SetInputData( vtkPolyData::SafeDownCast( pointActors[i]->GetMapper()->GetInput() ) );
-          transformFilter->SetTransform( tMatricies[i] );
-          transformFilter->Update();
-
-          vtkSmartPointer<vtkPolyDataMapper> mapper = vtkSmartPointer<vtkPolyDataMapper>::New();
-          mapper->SetInputData( transformFilter->GetOutput() );
-
-          vtkSmartPointer<vtkActor> actor = vtkSmartPointer<vtkActor>::New();
-          actor->SetMapper( mapper );
-
-          pointActors[i] = actor;
-
-          iren->GetRenderWindow()->GetRenderers()->GetFirstRenderer()->AddActor( pointActors[i] );
-      }
-    }
-    else if (reverse)
-    {
-      for ( int i = pointActors.size()-1; i >= 0; i-- )
-      {
-          iren->GetRenderWindow()->GetRenderers()->GetFirstRenderer()->RemoveActor( pointActors[i] );
+        iren->GetRenderWindow()->GetRenderers()->GetFirstRenderer()->RemoveActor( timerAngleTextActor );
+        timerAngleTextActor = angleTextActors[volumeCounter];
       }
 
-      for ( int i = pointActors.size()-1; i >= 0; i-- )
+      // Points
+      if ( timerPointActor.size() == 0 && tPointActors.size() != 0 )
       {
-          vtkSmartPointer<vtkTransformPolyDataFilter> transformFilter = vtkSmartPointer<vtkTransformPolyDataFilter>::New();
-          transformFilter->SetInputData( vtkPolyData::SafeDownCast( pointActors[i]->GetMapper()->GetInput() ) );
-          transformFilter->SetTransform( tMatricies[i] );
-          transformFilter->Update();
-
-          vtkSmartPointer<vtkPolyDataMapper> mapper = vtkSmartPointer<vtkPolyDataMapper>::New();
-          mapper->SetInputData( transformFilter->GetOutput() );
-
-          vtkSmartPointer<vtkActor> actor = vtkSmartPointer<vtkActor>::New();
-          actor->SetMapper( mapper );
-
-          pointActors[i] = actor;
-
-          iren->GetRenderWindow()->GetRenderers()->GetFirstRenderer()->AddActor( pointActors[i] );
+        timerPointActor.push_back( tPointActors[0][0] );
       }
-    }
 
-      iren->GetRenderWindow()->GetRenderers()->GetFirstRenderer()->AddActor( actor );
+      for ( int i = 0; i < timerPointActor.size(); i++ )
+      {
+        iren->GetRenderWindow()->GetRenderers()->GetFirstRenderer()->RemoveActor( timerPointActor[i] );
+      }
+      timerPointActor.clear();
+
+      for ( int i = 0; i < tPointActors.size(); i++ )
+      {
+        timerPointActor.push_back( tPointActors[i][volumeCounter] );
+      }
+
+      // Lines
+      if ( timerLineActor.size() == 0 && tLineActors.size() != 0 )
+      {
+        timerLineActor.push_back( tLineActors[0][0] );
+      }
+
+      for ( int i = 0; i < timerLineActor.size(); i++ )
+      {
+        iren->GetRenderWindow()->GetRenderers()->GetFirstRenderer()->RemoveActor( timerLineActor[i] );
+      }
+      timerLineActor.clear();
+
+      for ( int i = 0; i < tLineActors.size(); i++ )
+      {
+        timerLineActor.push_back( tLineActors[i][volumeCounter] );
+      }
+
+      /* 
+      *   Add next volume actors
+      */
+      iren->GetRenderWindow()->GetRenderers()->GetFirstRenderer()->AddActor( timerVolumeActor );
+
+      if ( angleLineActors.size() != 0 )
+      {
+        iren->GetRenderWindow()->GetRenderers()->GetFirstRenderer()->AddActor( timerAngleLineActor );
+        iren->GetRenderWindow()->GetRenderers()->GetFirstRenderer()->AddActor( timerAngleTextActor );
+      }
+
+      for ( int i = 0; i < timerPointActor.size(); i++ )
+      {
+        iren->GetRenderWindow()->GetRenderers()->GetFirstRenderer()->AddActor( timerPointActor[i] );
+      }
+
+      for ( int i = 0; i < timerLineActor.size(); i++ )
+      {
+        iren->GetRenderWindow()->GetRenderers()->GetFirstRenderer()->AddActor( timerLineActor[i] );
+      }
 
       iren->GetRenderWindow()->Render();
     }
 
   private:
-    int TimerCount;
+
   public:
-    vtkActor* actor;
-    vtkActor* pointActor;
+    vtkSmartPointer<vtkActor> timerVolumeActor;
+    vtkSmartPointer<vtkActor> timerAngleLineActor;
+    vtkSmartPointer<vtkActor> timerAngleTextActor;
+
+    std::vector< vtkSmartPointer<vtkActor> > timerPointActor;
+    std::vector< vtkSmartPointer<vtkActor> > timerLineActor;
 };
 
 #endif  // TIMERCALLBACK_H
