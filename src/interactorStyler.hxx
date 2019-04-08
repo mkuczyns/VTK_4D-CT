@@ -63,8 +63,6 @@ public:
             this->Interactor->GetRenderWindow()->GetRenderers()->GetFirstRenderer()->RemoveActor( angleLineActors[i] );
          }
 
-         this->Interactor->GetRenderWindow()->GetRenderers()->GetFirstRenderer()->RemoveActor( firsAngleLineActor );
-
          for ( int i = 0; i < angleTextActors.size(); i++ )
          {
             this->Interactor->GetRenderWindow()->GetRenderers()->GetFirstRenderer()->RemoveActor( angleTextActors[i] );
@@ -73,6 +71,7 @@ public:
          pointCounter = 0;
          lineCounter = 0;
 
+         tPoints.clear();
          tPointActors.clear();
          tLineActors.clear();
          angleLineActors.clear();
@@ -341,17 +340,21 @@ public:
          std::cout << std::endl;
          std::cout << "Printing point locations at current frame";
          std::cout << std::endl;
-         for ( int i = tPoints.size() - 1; i >= 0 ; i-- )
+
+         // Data was pushed back, so we need to read in reverse
+         for ( int i = tPoints.size() - 1, j = 0; i >= 0 ; i--, j++ )
          {
             double p[3] = { tPoints[i][volumeCounter]->GetCenter()[0], tPoints[i][volumeCounter]->GetCenter()[1], tPoints[i][volumeCounter]->GetCenter()[2] };
-            std::cout << "Point #" << i << " is located at: [" << p[0] << ", " << p[1] << ", " << p[2] << "]";
+            std::cout << "Point #" << j << " is located at: [" << p[0] << ", " << p[1] << ", " << p[2] << "]";
             std::cout << std::endl;
          }
          std::cout << std::endl;
 
          std::cout << "--------------Printing distance between points at current frame--------------";
          std::cout << std::endl;
-         for ( int i = tPoints.size() - 1; i > 0; i -= 2 )
+
+         // Data was pushed back, so we need to read in reverse
+         for ( int i = tPoints.size() - 1, j = 0; i > 0; i -= 2, j++ )
          {
             double tempArray1[3] = { tPoints[i][volumeCounter]->GetCenter()[0], tPoints[i][volumeCounter]->GetCenter()[1], tPoints[i][volumeCounter]->GetCenter()[2] }; 
             double tempArray2[3] = { tPoints[i - 1][volumeCounter]->GetCenter()[0], tPoints[i - 1][volumeCounter]->GetCenter()[1], tPoints[i - 1][volumeCounter]->GetCenter()[2] }; 
@@ -360,7 +363,7 @@ public:
             double squaredDistance = vtkMath::Distance2BetweenPoints(tempArray1, tempArray2);
             double distance = sqrt(squaredDistance);
 
-            std::cout << "Distance between point #" << i << " and point #" << i + 1 << " is: " << distance;
+            std::cout << "Distance between point #" << j << " and point #" << j + 1 << " is: " << distance;
             std::cout << std::endl;
          }
          std::cout << std::endl;
@@ -394,9 +397,118 @@ public:
 
    void printDataToFile()
    {
-      // Print distance between points
+      std::cout << std::endl;
+      std::cout << "*****************************************************************************";
+      std::cout << std::endl;
+      std::cout << "---------------------Printing available data to CSV file---------------------";
+
+      std::cout << std::endl;
+      std::cout << "Please enter the path to save your CSV file: ";
+
+      std::string filePath;
+      cin >> filePath;
+
+      if ( filePath.empty() )
+      {
+         std::cout << std::endl;
+         std::cout << "File path provided is empty! Please try again..." << std::endl;
+         return;
+      }
+
+      writeDataFile( filePath );
+
+      std::cout << "Data written to: " << filePath << std::endl;
+   }
+
+   void writeDataFile( std::string filePath )
+   {
+      // Create a output stream for writing to the provided path
+      std::ofstream dataFile;
+      dataFile.open( filePath );
+
+      // Use std::endl instead of \n to flush the buffer
+      // Print headers
+      dataFile << "4D-CT Data Output File" << std::endl << std::endl;
+
+      dataFile << "Computation Time (seconds),Point Data,,,,Line Data,,,,Angle Data";
+      dataFile << std::endl << compTime;
+      dataFile << ",Point,Transformed to Volume,,Coordinates,,Line,P1,P2,Distance,Transformed to Volume,Transformed Distance," 
+               << "Angle,Between Volumes,Value (degrees)" << std::endl << ",,,X,Y,Z" << std::endl;
+
+      // Print point coordinates and distance between points
+      if ( tPoints.empty() )
+      {
+         std::cout << std::endl;
+         std::cout << "No point data to print!";
+         std::cout << std::endl;
+      }
+      else
+      {
+         for ( int i = tPoints.size() - 1, n = tPoints.size() - 1, count = 0; i >= 0 && n >= 0; i--, count++ )
+         {
+            double p1[3] = { tPoints[n][0]->GetCenter()[0], 
+                             tPoints[n][0]->GetCenter()[1], 
+                             tPoints[n][0]->GetCenter()[2] 
+                           }; 
+            double p2[3] = { tPoints[n - 1][0]->GetCenter()[0], 
+                             tPoints[n - 1][0]->GetCenter()[1], 
+                             tPoints[n - 1][0]->GetCenter()[2] 
+                           };
+
+            double squaredDistance = vtkMath::Distance2BetweenPoints(p1, p2);
+            double distance = sqrt(squaredDistance);
+            
+            for ( int j = 0, m = 0, count2 = 0; j < tPoints[i].size() && m < tPoints[n].size() - 1; j++, count2++ )
+            {
+               double p[3] = { tPoints[i][j]->GetCenter()[0], tPoints[i][j]->GetCenter()[1], tPoints[i][j]->GetCenter()[2] };
+
+               double tempArray1[3] = { tPoints[n][m]->GetCenter()[0], 
+                                        tPoints[n][m]->GetCenter()[1], 
+                                        tPoints[n][m]->GetCenter()[2] 
+                                      }; 
+               double tempArray2[3] = { tPoints[n - 1][m]->GetCenter()[0], 
+                                        tPoints[n - 1][m]->GetCenter()[1], 
+                                        tPoints[n - 1][m]->GetCenter()[2] 
+                                      };
+
+               double tSquaredDistance = vtkMath::Distance2BetweenPoints(tempArray1, tempArray2);
+               double tDistance = sqrt(tSquaredDistance);
+
+               dataFile << "," << count << "," << count2 << ",";
+               dataFile << p[0] << "," << p[1] << "," << p[2];
+               dataFile << "," << count2 << "," << count << "," << count2 << "," << distance << "," << tDistance;
+               dataFile << std::endl;
+
+               m += 2;
+
+               if ( m >= tPoints[n].size() - 1 && j <= tPoints[i].size() )
+               {
+                  m = 0;
+               }
+            }
+
+            n -= 2;
+
+            if ( n <= 0 && i >= 0 )
+            {
+               n = tPoints.size() - 1;
+            }
+         }
+      }
 
       // Print angular information
+      if ( angles.empty() )
+      {
+         std::cout << std::endl;
+         std::cout << "No angle data to print!";
+         std::cout << std::endl;
+      }
+      else
+      {
+
+      }
+
+      dataFile.close();
    }
 
    void drawAngle()

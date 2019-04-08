@@ -29,14 +29,20 @@ int main(int argc, char* argv[])
   /***************************************************************
   *   Check input arguements
   ***************************************************************/
+ /* 
+ *  User must provide two inputs:
+ *    1. Path to DICOM folder containing unsorted 4D-CT DICOM data
+ *    2. Path to where the user wants to save the sorted DICOM data
+ */
   // if ( argc != 2 )
   // {
   //     std::cout << "ERROR: Incorrect program usage. \n";
   //     std::cout << "Correct usage: \n";
-  //     std::cout << argv[0] << " <DICOM_Folder_Directory> \n";
+  //     std::cout << argv[0] << " <DICOM_Folder_Directory> <New_Sorted_DICOM_Directory> \n";
   //     return EXIT_FAILURE;
   // }
 
+  // Setup a timer to see how long the entire program takes
   typedef std::chrono::high_resolution_clock Time;
   typedef std::chrono::duration<float> fsec;
   auto t0 = Time::now();
@@ -46,14 +52,12 @@ int main(int argc, char* argv[])
   vtkSmartPointer<vtkImageData>        gaussianImage = vtkSmartPointer<vtkImageData>::New();
   vtkSmartPointer<vtkImageData>        segImage      = vtkSmartPointer<vtkImageData>::New();
 
-// TO-DO: Move code below to a new function
   /***************************************************************
   *   Sort and store the DICOM files by volume/frame
   ***************************************************************/
-  // TO-DO: Fix hardcoded file path
-  // std::string path = "D:\\Git\\sort_4D-CT_DICOMs\\DICOMs\\Test Tube\\SORTED";
+  std::string path = "D:\\Git\\sort_4D-CT_DICOMs\\DICOMs\\Test Tube\\SORTED";
   // std::string path = "D:\\Git\\sort_4D-CT_DICOMs\\DICOMs\\Two Spheres\\DECOMP\\SORTED";
-  std::string path = "E:\\Git\\VTK_4D-CT\\img\\test tube\\sorted";
+  // std::string path = "E:\\Git\\VTK_4D-CT\\img\\test tube\\sorted";
 
   /* 
   *  First, read in all files in the directory into a vector.
@@ -67,11 +71,11 @@ int main(int argc, char* argv[])
 
   for ( const auto & entry : fs::directory_iterator( path ) )
   {
-    // std::cout << std::stoi( entry.path().string().substr( 61, entry.path().string().length() - 8 ) ) << " ";
+    // std::cout << std::stoi( entry.path().string().substr( 52, entry.path().string().length() - 8 ) ) << " ";
     // For now, the location of the file's number is hardcoded...
     // TO-DO: fix - the string path and the substring indicies are hardcoded... (52 on my laptop, 42 on my desktop)
     // 61 for sphere data on laptop
-    int temp = std::stoi( entry.path().string().substr( 41, entry.path().string().length() - 4 ) );
+    int temp = std::stoi( entry.path().string().substr( 52, entry.path().string().length() - 4 ) );
     dicomDirectoryData.push_back( { temp, entry.path().string() } );
   }
 
@@ -91,9 +95,9 @@ int main(int argc, char* argv[])
 
     // Create a new directory for each volume (**ONLY WORKS ON WINDOWS OS!**)
     std::string num = std::to_string( i+1 );
-    // std::string volDir = "D:\\4D-CT Data\\TestTube\\volumes\\vol_" + num + "\\";
+    std::string volDir = "D:\\4D-CT Data\\TestTube\\volumes\\vol_" + num + "\\";
     // std::string volDir = "D:\\4D-CT Data\\Spheres\\TwoSpheres-4DCT\\volumes\\vol_" + num + "\\";
-    std::string volDir = "E:\\Git\\VTK_4D-CT\\img\\test tube\\volumes\\vol_" + num + "\\";
+    // std::string volDir = "E:\\Git\\VTK_4D-CT\\img\\test tube\\volumes\\vol_" + num + "\\";
     mkdir( volDir.c_str() );
 
     std::vector< std::pair<int, std::string> > temp;
@@ -102,10 +106,10 @@ int main(int argc, char* argv[])
     {
       temp.push_back( { dicomDirectoryData[count].first, dicomDirectoryData[count].second } );
 
-      // TO-DO: fix - the string path and the substring indicies are hardcoded... (39 on my laptop, 38 on my desktop)
+      // TO-DO: fix - the string path and the substring indicies are hardcoded... (49 on my laptop, 38 on my desktop)
       // 58 for sphere data on laptop
-      // std::cout << (dicomDirectoryData[count].second).substr( 58, ( dicomDirectoryData[count].second ).length()) << " ";
-      std::string dicomFile = ( dicomDirectoryData[count].second).substr( 38, ( dicomDirectoryData[count].second ).length() );
+      // std::cout << (dicomDirectoryData[count].second).substr( 49, ( dicomDirectoryData[count].second ).length()) << " ";
+      std::string dicomFile = ( dicomDirectoryData[count].second).substr( 49, ( dicomDirectoryData[count].second ).length() );
       std::string srcDir    = dicomDirectoryData[count].second;
 
       std::ifstream src(srcDir.c_str(), std::ios::binary);
@@ -136,9 +140,9 @@ int main(int argc, char* argv[])
   {
     std::cout << "Processing volume #" << (i+1) << "...";
 
-    // std::string temp = "D:\\4D-CT Data\\TestTube\\volumes\\vol_" + std::to_string( i + 1 );
+    std::string temp = "D:\\4D-CT Data\\TestTube\\volumes\\vol_" + std::to_string( i + 1 );
     // std::string temp = "D:\\4D-CT Data\\Spheres\\TwoSpheres-4DCT\\volumes\\vol_" + std::to_string( i + 1 );
-    std::string temp = "E:\\Git\\VTK_4D-CT\\img\\test tube\\volumes\\vol_" + std::to_string( i + 1 );
+    // std::string temp = "E:\\Git\\VTK_4D-CT\\img\\test tube\\volumes\\vol_" + std::to_string( i + 1 );
 
     dicomReader->SetDirectoryName( temp.c_str() );
     dicomReader->Update();
@@ -170,6 +174,8 @@ int main(int argc, char* argv[])
     globalThresh->SetOutValue(0);
     globalThresh->SetOutputScalarTypeToFloat();
     globalThresh->Update();
+
+    // Apply opening morphology to remove speckles
 
     // Use the Marching cubes algorithm to generate the surface
     vtkSmartPointer<vtkMarchingCubes> surface = vtkSmartPointer<vtkMarchingCubes>::New();
@@ -209,7 +215,6 @@ int main(int argc, char* argv[])
     std::cout << "Done! \n";
   }  
 
-  // Now register the first frame onto the remaining volumes
   /***************************************************************
   *   Perform ICP registration
   ***************************************************************/
@@ -228,7 +233,7 @@ int main(int argc, char* argv[])
     icpRegistrations.push_back( icp );
   }
 
-// Get a line at the bottom of each volume. The angle will be calculated as the angle between the line in volume 1 and the line from all other volumes.
+  // Get a line at the bottom of each volume. The angle will be calculated as the angle between the line in volume 1 and the line from all other volumes.
   // Get the geometry bounding box of the first volume (Xmin, Xmax, Ymin, Ymax, Zmin, Zmax)
   // Transform this line onto all other volumes
   double* bounds = dicomVolumes[0]->GetBounds();
@@ -272,28 +277,6 @@ int main(int argc, char* argv[])
   /***************************************************************
   *   Create the scene
   ***************************************************************/
-  // Create a cube surface
-  cubeSource = vtkSmartPointer<vtkCubeSource>::New();
-  cubeSource->SetXLength(125);
-  cubeSource->SetYLength(10);
-  cubeSource->SetZLength(150);
-  cubeSource->SetCenter(70,10,25);
-  cubeSource->Update();
-
-  vtkSmartPointer<vtkPolyData> cube = cubeSource->GetOutput();
-
-  vtkSmartPointer<vtkPolyDataMapper> cubeMapper = vtkSmartPointer<vtkPolyDataMapper>::New();
-  cubeMapper->SetInputData(cubeSource->GetOutput());
-
-// TO-DO: Play with colouring
-  vtkSmartPointer<vtkActor> cubeActor = vtkSmartPointer<vtkActor>::New();
-  cubeActor->SetMapper(cubeMapper);
-  cubeActor->GetProperty()->SetColor(0.8,0.8,0.4);
-  cubeActor->GetProperty()->ShadingOn();
-  cubeActor->GetProperty()->SetDiffuse(0.8);
-  // cubeActor->GetProperty()->SetAmbient(0.2);
-  // cubeActor->GetProperty()->SetSpecular(0.8);
-
   // Create a mapper and actor for each volume
   for ( int i = 0; i < dicomVolumes.size(); i++ )
   {
