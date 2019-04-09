@@ -55,9 +55,10 @@ int main(int argc, char* argv[])
   /***************************************************************
   *   Sort and store the DICOM files by volume/frame
   ***************************************************************/
-  std::string path = "D:\\Git\\sort_4D-CT_DICOMs\\DICOMs\\Test Tube\\SORTED";
+  // std::string path = "D:\\Git\\sort_4D-CT_DICOMs\\DICOMs\\Test Tube\\SORTED";
   // std::string path = "D:\\Git\\sort_4D-CT_DICOMs\\DICOMs\\Two Spheres\\DECOMP\\SORTED";
-  // std::string path = "E:\\Git\\VTK_4D-CT\\img\\test tube\\sorted";
+  std::string path = "E:\\Git\\VTK_4D-CT\\img\\test tube\\sorted";
+  // std::string path = "E:\\Git\\VTK_4D-CT\\img\\spheres\\sorted";
 
   /* 
   *  First, read in all files in the directory into a vector.
@@ -71,11 +72,11 @@ int main(int argc, char* argv[])
 
   for ( const auto & entry : fs::directory_iterator( path ) )
   {
-    // std::cout << std::stoi( entry.path().string().substr( 52, entry.path().string().length() - 8 ) ) << " ";
+    // std::cout << std::stoi( entry.path().string().substr( 41, entry.path().string().length() - 4 ) ) << " ";
     // For now, the location of the file's number is hardcoded...
     // TO-DO: fix - the string path and the substring indicies are hardcoded... (52 on my laptop, 42 on my desktop)
-    // 61 for sphere data on laptop
-    int temp = std::stoi( entry.path().string().substr( 52, entry.path().string().length() - 4 ) );
+    // 61 for sphere data on laptop, 39 on PC
+    int temp = std::stoi( entry.path().string().substr( 41, entry.path().string().length() - 4 ) );
     dicomDirectoryData.push_back( { temp, entry.path().string() } );
   }
 
@@ -89,27 +90,28 @@ int main(int argc, char* argv[])
 
   int count = 0;
 
-  for ( int i = 0; i < 80; i++ )
+  for ( int i = 0; i < 20; i++ )
   {    
     std::cout << "Reading DICOMs for volume #" << (i+1) << "...";
 
     // Create a new directory for each volume (**ONLY WORKS ON WINDOWS OS!**)
     std::string num = std::to_string( i+1 );
-    std::string volDir = "D:\\4D-CT Data\\TestTube\\volumes\\vol_" + num + "\\";
+    // std::string volDir = "D:\\4D-CT Data\\TestTube\\volumes\\vol_" + num + "\\";
     // std::string volDir = "D:\\4D-CT Data\\Spheres\\TwoSpheres-4DCT\\volumes\\vol_" + num + "\\";
-    // std::string volDir = "E:\\Git\\VTK_4D-CT\\img\\test tube\\volumes\\vol_" + num + "\\";
+    std::string volDir = "E:\\Git\\VTK_4D-CT\\img\\test tube\\volumes\\vol_" + num + "\\";
+    // std::string volDir = "E:\\Git\\VTK_4D-CT\\img\\spheres\\volumes\\vol_" + num + "\\";
     mkdir( volDir.c_str() );
 
     std::vector< std::pair<int, std::string> > temp;
 
-    for ( int j = 0; j < 16 && count < 1280; j++, count++ )
+    for ( int j = 0; j < 16 && count < 320; j++, count++ )
     {
       temp.push_back( { dicomDirectoryData[count].first, dicomDirectoryData[count].second } );
 
       // TO-DO: fix - the string path and the substring indicies are hardcoded... (49 on my laptop, 38 on my desktop)
-      // 58 for sphere data on laptop
-      // std::cout << (dicomDirectoryData[count].second).substr( 49, ( dicomDirectoryData[count].second ).length()) << " ";
-      std::string dicomFile = ( dicomDirectoryData[count].second).substr( 49, ( dicomDirectoryData[count].second ).length() );
+      // 58 for sphere data on laptop, 36 on PC
+      // std::cout << (dicomDirectoryData[count].second).substr( 38, ( dicomDirectoryData[count].second ).length()) << " ";
+      std::string dicomFile = ( dicomDirectoryData[count].second).substr( 38, ( dicomDirectoryData[count].second ).length() );
       std::string srcDir    = dicomDirectoryData[count].second;
 
       std::ifstream src(srcDir.c_str(), std::ios::binary);
@@ -140,9 +142,10 @@ int main(int argc, char* argv[])
   {
     std::cout << "Processing volume #" << (i+1) << "...";
 
-    std::string temp = "D:\\4D-CT Data\\TestTube\\volumes\\vol_" + std::to_string( i + 1 );
+    // std::string temp = "D:\\4D-CT Data\\TestTube\\volumes\\vol_" + std::to_string( i + 1 );
     // std::string temp = "D:\\4D-CT Data\\Spheres\\TwoSpheres-4DCT\\volumes\\vol_" + std::to_string( i + 1 );
-    // std::string temp = "E:\\Git\\VTK_4D-CT\\img\\test tube\\volumes\\vol_" + std::to_string( i + 1 );
+    std::string temp = "E:\\Git\\VTK_4D-CT\\img\\test tube\\volumes\\vol_" + std::to_string( i + 1 );
+    // std::string temp = "E:\\Git\\VTK_4D-CT\\img\\spheres\\volumes\\vol_" + std::to_string( i + 1 );
 
     dicomReader->SetDirectoryName( temp.c_str() );
     dicomReader->Update();
@@ -161,7 +164,7 @@ int main(int argc, char* argv[])
     *   Segment the input image
     ***************************************************************/
     // Perform segmentation (-800 to 500 for entire device)
-    int lowerThresh = -125, upperThresh = 500;
+    int lowerThresh = -150, upperThresh = 500;
     double isoValue = 50.0;
 
     // Apply the global threshold
@@ -175,11 +178,23 @@ int main(int argc, char* argv[])
     globalThresh->SetOutputScalarTypeToFloat();
     globalThresh->Update();
 
-    // Apply opening morphology to remove speckles
+    vtkSmartPointer<vtkImageDilateErode3D> erode = vtkSmartPointer<vtkImageDilateErode3D>::New();
+    erode->SetInputConnection(globalThresh->GetOutputPort());
+    erode->SetKernelSize(3,3,3);
+    erode->SetDilateValue(0);
+    erode->SetErodeValue(isoValue + 1);
+    erode->Update();
+
+    vtkSmartPointer<vtkImageDilateErode3D> dilate = vtkSmartPointer<vtkImageDilateErode3D>::New();
+    dilate->SetInputConnection(erode->GetOutputPort());
+    dilate->SetKernelSize(3,3,3);
+    dilate->SetDilateValue(isoValue + 1);
+    dilate->SetErodeValue(0);
+    dilate->Update();
 
     // Use the Marching cubes algorithm to generate the surface
     vtkSmartPointer<vtkMarchingCubes> surface = vtkSmartPointer<vtkMarchingCubes>::New();
-    surface->SetInputData( globalThresh->GetOutput() );
+    surface->SetInputData( dilate->GetOutput() );
     surface->ComputeNormalsOn();
     surface->SetValue( 0, isoValue );
 
@@ -226,7 +241,8 @@ int main(int argc, char* argv[])
     icp->SetSource( dicomVolumes[0] );
     icp->SetTarget( dicomVolumes[i] );
     icp->SetMaximumNumberOfIterations( 30 );
-    icp->GetLandmarkTransform()->SetModeToAffine();
+    icp->GetLandmarkTransform()->SetModeToSimilarity();
+    icp->CheckMeanDistanceOn();
     icp->StartByMatchingCentroidsOn();
     icp->Update();
     

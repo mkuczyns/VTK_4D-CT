@@ -90,6 +90,7 @@ namespace fs = std::experimental::filesystem;
 #include <vtkIntersectionPolyDataFilter.h>
 #include <vtkOBBTree.h>
 #include <vtkVectorText.h>
+#include <vtkImageDilateErode3D.h>
 
 /*******************************************************************************************************************
 *   Global variables
