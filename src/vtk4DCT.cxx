@@ -47,6 +47,7 @@ int main(int argc, char* argv[])
 
   for ( const auto & entry : fs::directory_iterator( path ) )
   {
+    // std::cout << std::stoi( entry.path().string().substr( 41, entry.path().string().length() - 4 ) ) << " ";
     // For now, the location of the file's number is hardcoded...
     // TO-DO: fix - the string path and the substring indicies are hardcoded... (52 on my laptop, 42 on my desktop)
     // 61 for sphere data on laptop, 39 on PC
@@ -212,7 +213,7 @@ int main(int argc, char* argv[])
     icp->SetSource( dicomVolumes[0] );
     icp->SetTarget( dicomVolumes[i] );
     icp->SetMaximumNumberOfIterations( 30 );
-    icp->GetLandmarkTransform()->SetModeToSimilarity();
+    icp->GetLandmarkTransform()->SetModeToAffine();
     icp->CheckMeanDistanceOn();
     icp->StartByMatchingCentroidsOn();
     icp->Update();
@@ -272,7 +273,7 @@ int main(int argc, char* argv[])
     vtkSmartPointer<vtkActor> actor = vtkSmartPointer<vtkActor>::New();
     actor->SetMapper( mapper );
 
-    actor->GetProperty()->SetColor(1.0, 1.0, 1.0);
+    actor->GetProperty()->SetColor(0.5, 0.5, 1.0);
     actor->GetProperty()->SetOpacity(0.85);
 
     volumeActors.push_back( actor );

@@ -29,7 +29,7 @@ class vtkTimerCallback2 : public vtkCommand
         forward = true;
         reverse = false;
       }
-      else if ( volumeCounter >= 79 )
+      else if ( volumeCounter >= 19 )
       {
         reverse = true;
         forward = false;
