@@ -1,7 +1,5 @@
 # VTK_4D-CT
 
-A program to read, sort, and process 4D-CT data sets.
-
 ## Keyboard Controls
 1. Z = Start animation
 2. X = Stop animation
