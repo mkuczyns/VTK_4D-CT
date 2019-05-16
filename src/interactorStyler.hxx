@@ -423,17 +423,22 @@ public:
    void writeDataFile( std::string filePath )
    {
       // Create a output stream for writing to the provided path
+      std::string filePath2 = filePath + "angles.csv";
+      filePath += "points.csv";
+
       std::ofstream dataFile;
+      std::ofstream dataFile2;
       dataFile.open( filePath );
+      dataFile2.open( filePath2 );
 
       // Use std::endl instead of \n to flush the buffer
       // Print headers
       dataFile << "4D-CT Data Output File" << std::endl << std::endl;
 
-      dataFile << "Computation Time (seconds),Point Data,,,,Line Data,,,,Angle Data";
+      dataFile << "Computation Time (seconds),Point Data,,,,Line Data";
       dataFile << std::endl << compTime;
-      dataFile << ",Point,Transformed to Volume,,Coordinates,,Line,P1,P2,Distance,Transformed to Volume,Transformed Distance," 
-               << "Angle,Between Volumes,Value (degrees)" << std::endl << ",,,X,Y,Z" << std::endl;
+      dataFile << ",Point,Transformed to Volume,,Coordinates,,Line,P1,P2,Distance,Transformed to Volume,Transformed Distance,Bounds of Polydata" 
+               << std::endl << ",,,X,Y,Z,,,,,,,Xmin,Ymin,Zmin,Xmax,Ymax,Zmax" << std::endl;
 
       // Print point coordinates and distance between points
       if ( tPoints.empty() )
@@ -474,9 +479,15 @@ public:
                double tSquaredDistance = vtkMath::Distance2BetweenPoints(tempArray1, tempArray2);
                double tDistance = sqrt(tSquaredDistance);
 
+               double* bounds = dicomVolumes[count2]->GetBounds();
+               double tempBounds1[3] = { bounds[0], bounds[2], bounds[4] }; 
+               double tempBounds2[3] = { bounds[1], bounds[3], bounds[5]  };
+
                dataFile << "," << count << "," << count2 << ",";
                dataFile << p[0] << "," << p[1] << "," << p[2];
-               dataFile << "," << count2 << "," << count << "," << count2 << "," << distance << "," << tDistance;
+               dataFile << "," << count2 << "," << count << "," << count2 << "," << distance << "," << count2 << "," << tDistance << ",,";
+               dataFile << tempBounds1[0] << "," << tempBounds1[1] << "," << tempBounds1[2] << ",";
+               dataFile << tempBounds2[0] << "," << tempBounds2[1] << "," << tempBounds2[2];
                dataFile << std::endl;
 
                m += 2;
@@ -505,10 +516,16 @@ public:
       }
       else
       {
-
+         dataFile2 << "4D-CT Data Output File" << std::endl << std::endl;
+         dataFile2 << "Angle,Between Volumes,Value (degrees)" << std::endl;
+         for ( int i = 0; i < angles.size(); i++ )
+         {
+            dataFile2 << i << "," << "0 and " << i << "," << angles[i] << std::endl; 
+         }
       }
 
       dataFile.close();
+      dataFile2.close();
    }
 
    void drawAngle()

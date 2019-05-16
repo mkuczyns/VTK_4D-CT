@@ -1,47 +1,22 @@
-/*
+/****************************************************************************
+*   vtk4DCT.hxx
 *
-*   4D-CT Pipeline: similar to the timer/animation example, but first process the 80 volumes (filter, threshold, Marching cubes), 
-*                   then save them to a vector. Then read in these files and loop through them (update mappers and actors with new inputs for each volume).
-*/
-
-
-// TO-DO: Organize code!!!
-
-// TO-DO: Add volume animations                                   - DONE (29-03-2019)
-// TO-DO: Add point picking                                       - DONE (30-03-2019)
-// TO-DO: Control playback with keyboard                          - DONE (02-04-2019)
-// TO-DO: Display picked points                                   - DONE (01-04-2019)
-// TO-DO: Connect points with lines                               - DONE (02-04-2019)
-// TO-DO: Get distance between points                             - DONE (02-04-2019)
-// TO-DO: Track picked points (registration)                      -
-// TO-DO: Quantify changes in distance (or changes in geometry?)  -
-
-// void TimerCallbackFunction ( vtkObject* caller, long unsigned int eventId, void* clientData, void* callData );
-
+*   Created by:     Michael Kuczynski
+*   Created on:     28/03/2019
+*   Description:    
+*****************************************************************************
+*   TO-DO:
+*
+****************************************************************************/
 #include "vtk4DCT.hxx"
 #include "helperFunctions.hxx"
 #include "interactorStyler.hxx"
 
 vtkStandardNewMacro(myInteractorStyle);
 
+// Note: all file paths are hard coded!
 int main(int argc, char* argv[])
 {
-  /***************************************************************
-  *   Check input arguements
-  ***************************************************************/
- /* 
- *  User must provide two inputs:
- *    1. Path to DICOM folder containing unsorted 4D-CT DICOM data
- *    2. Path to where the user wants to save the sorted DICOM data
- */
-  // if ( argc != 2 )
-  // {
-  //     std::cout << "ERROR: Incorrect program usage. \n";
-  //     std::cout << "Correct usage: \n";
-  //     std::cout << argv[0] << " <DICOM_Folder_Directory> <New_Sorted_DICOM_Directory> \n";
-  //     return EXIT_FAILURE;
-  // }
-
   // Setup a timer to see how long the entire program takes
   typedef std::chrono::high_resolution_clock Time;
   typedef std::chrono::duration<float> fsec;
@@ -55,9 +30,10 @@ int main(int argc, char* argv[])
   /***************************************************************
   *   Sort and store the DICOM files by volume/frame
   ***************************************************************/
-  std::string path = "D:\\Git\\sort_4D-CT_DICOMs\\DICOMs\\Test Tube\\SORTED";
+  // std::string path = "D:\\Git\\sort_4D-CT_DICOMs\\DICOMs\\Test Tube\\SORTED";
   // std::string path = "D:\\Git\\sort_4D-CT_DICOMs\\DICOMs\\Two Spheres\\DECOMP\\SORTED";
-  // std::string path = "E:\\Git\\VTK_4D-CT\\img\\test tube\\sorted";
+  std::string path = "E:\\Git\\VTK_4D-CT\\img\\test tube\\sorted";
+  // std::string path = "E:\\Git\\VTK_4D-CT\\img\\spheres\\sorted";
 
   /* 
   *  First, read in all files in the directory into a vector.
@@ -71,11 +47,10 @@ int main(int argc, char* argv[])
 
   for ( const auto & entry : fs::directory_iterator( path ) )
   {
-    // std::cout << std::stoi( entry.path().string().substr( 52, entry.path().string().length() - 8 ) ) << " ";
     // For now, the location of the file's number is hardcoded...
     // TO-DO: fix - the string path and the substring indicies are hardcoded... (52 on my laptop, 42 on my desktop)
-    // 61 for sphere data on laptop
-    int temp = std::stoi( entry.path().string().substr( 52, entry.path().string().length() - 4 ) );
+    // 61 for sphere data on laptop, 39 on PC
+    int temp = std::stoi( entry.path().string().substr( 41, entry.path().string().length() - 4 ) );
     dicomDirectoryData.push_back( { temp, entry.path().string() } );
   }
 
@@ -95,9 +70,10 @@ int main(int argc, char* argv[])
 
     // Create a new directory for each volume (**ONLY WORKS ON WINDOWS OS!**)
     std::string num = std::to_string( i+1 );
-    std::string volDir = "D:\\4D-CT Data\\TestTube\\volumes\\vol_" + num + "\\";
+    // std::string volDir = "D:\\4D-CT Data\\TestTube\\volumes\\vol_" + num + "\\";
     // std::string volDir = "D:\\4D-CT Data\\Spheres\\TwoSpheres-4DCT\\volumes\\vol_" + num + "\\";
-    // std::string volDir = "E:\\Git\\VTK_4D-CT\\img\\test tube\\volumes\\vol_" + num + "\\";
+    std::string volDir = "E:\\Git\\VTK_4D-CT\\img\\test tube\\volumes\\vol_" + num + "\\";
+    // std::string volDir = "E:\\Git\\VTK_4D-CT\\img\\spheres\\volumes\\vol_" + num + "\\";
     mkdir( volDir.c_str() );
 
     std::vector< std::pair<int, std::string> > temp;
@@ -107,9 +83,8 @@ int main(int argc, char* argv[])
       temp.push_back( { dicomDirectoryData[count].first, dicomDirectoryData[count].second } );
 
       // TO-DO: fix - the string path and the substring indicies are hardcoded... (49 on my laptop, 38 on my desktop)
-      // 58 for sphere data on laptop
-      // std::cout << (dicomDirectoryData[count].second).substr( 49, ( dicomDirectoryData[count].second ).length()) << " ";
-      std::string dicomFile = ( dicomDirectoryData[count].second).substr( 49, ( dicomDirectoryData[count].second ).length() );
+      // 58 for sphere data on laptop, 36 on PC
+      std::string dicomFile = ( dicomDirectoryData[count].second).substr( 38, ( dicomDirectoryData[count].second ).length() );
       std::string srcDir    = dicomDirectoryData[count].second;
 
       std::ifstream src(srcDir.c_str(), std::ios::binary);
@@ -126,8 +101,6 @@ int main(int argc, char* argv[])
   /***************************************************************
   *   Process each volume and save results into a vector
   ***************************************************************/
-  // Experiment with various edge detections + filters + segmentations?
-
   std::cout << "\n***Processing the volumes***\n";
 
   // First, sort the slices of each volume into ascending order
@@ -140,9 +113,10 @@ int main(int argc, char* argv[])
   {
     std::cout << "Processing volume #" << (i+1) << "...";
 
-    std::string temp = "D:\\4D-CT Data\\TestTube\\volumes\\vol_" + std::to_string( i + 1 );
+    // std::string temp = "D:\\4D-CT Data\\TestTube\\volumes\\vol_" + std::to_string( i + 1 );
     // std::string temp = "D:\\4D-CT Data\\Spheres\\TwoSpheres-4DCT\\volumes\\vol_" + std::to_string( i + 1 );
-    // std::string temp = "E:\\Git\\VTK_4D-CT\\img\\test tube\\volumes\\vol_" + std::to_string( i + 1 );
+    std::string temp = "E:\\Git\\VTK_4D-CT\\img\\test tube\\volumes\\vol_" + std::to_string( i + 1 );
+    // std::string temp = "E:\\Git\\VTK_4D-CT\\img\\spheres\\volumes\\vol_" + std::to_string( i + 1 );
 
     dicomReader->SetDirectoryName( temp.c_str() );
     dicomReader->Update();
@@ -161,7 +135,7 @@ int main(int argc, char* argv[])
     *   Segment the input image
     ***************************************************************/
     // Perform segmentation (-800 to 500 for entire device)
-    int lowerThresh = -125, upperThresh = 500;
+    int lowerThresh = -150, upperThresh = 500;
     double isoValue = 50.0;
 
     // Apply the global threshold
@@ -175,11 +149,23 @@ int main(int argc, char* argv[])
     globalThresh->SetOutputScalarTypeToFloat();
     globalThresh->Update();
 
-    // Apply opening morphology to remove speckles
+    vtkSmartPointer<vtkImageDilateErode3D> erode = vtkSmartPointer<vtkImageDilateErode3D>::New();
+    erode->SetInputConnection(globalThresh->GetOutputPort());
+    erode->SetKernelSize(3,3,3);
+    erode->SetDilateValue(0);
+    erode->SetErodeValue(isoValue + 1);
+    erode->Update();
+
+    vtkSmartPointer<vtkImageDilateErode3D> dilate = vtkSmartPointer<vtkImageDilateErode3D>::New();
+    dilate->SetInputConnection(erode->GetOutputPort());
+    dilate->SetKernelSize(3,3,3);
+    dilate->SetDilateValue(isoValue + 1);
+    dilate->SetErodeValue(0);
+    dilate->Update();
 
     // Use the Marching cubes algorithm to generate the surface
     vtkSmartPointer<vtkMarchingCubes> surface = vtkSmartPointer<vtkMarchingCubes>::New();
-    surface->SetInputData( globalThresh->GetOutput() );
+    surface->SetInputData( dilate->GetOutput() );
     surface->ComputeNormalsOn();
     surface->SetValue( 0, isoValue );
 
@@ -226,7 +212,8 @@ int main(int argc, char* argv[])
     icp->SetSource( dicomVolumes[0] );
     icp->SetTarget( dicomVolumes[i] );
     icp->SetMaximumNumberOfIterations( 30 );
-    icp->GetLandmarkTransform()->SetModeToAffine();
+    icp->GetLandmarkTransform()->SetModeToSimilarity();
+    icp->CheckMeanDistanceOn();
     icp->StartByMatchingCentroidsOn();
     icp->Update();
     
@@ -268,7 +255,6 @@ int main(int argc, char* argv[])
   vtkSmartPointer<vtkPolyDataMapper> cubeLineMapper = vtkSmartPointer<vtkPolyDataMapper>::New();
   cubeLineMapper->SetInputData(cubeLine->GetOutput());
 
-// TO-DO: Play with colouring
   vtkSmartPointer<vtkActor> cubeLineActor = vtkSmartPointer<vtkActor>::New();
   cubeLineActor->SetMapper(cubeLineMapper);
   cubeLineActor->GetProperty()->SetColor(0.5, 0.5, 0.5);
@@ -286,7 +272,7 @@ int main(int argc, char* argv[])
     vtkSmartPointer<vtkActor> actor = vtkSmartPointer<vtkActor>::New();
     actor->SetMapper( mapper );
 
-    actor->GetProperty()->SetColor(0.5, 0.5, 1.0);
+    actor->GetProperty()->SetColor(1.0, 1.0, 1.0);
     actor->GetProperty()->SetOpacity(0.85);
 
     volumeActors.push_back( actor );
