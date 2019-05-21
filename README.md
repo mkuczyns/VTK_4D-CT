@@ -14,6 +14,7 @@
 11. N = print current frame information to terminal
 12. M = print information on all frames to CSV file
 
+
 ## How To Run
 1. Create a folder for the build (e.g. bin, build, etc.)
 2. Build with CMake and your favorite compiler.
@@ -24,6 +25,7 @@
     ```
 
 4. Note that paths to directories or files has been hardcoded!
+
 
 ## Overview of Program
 ![ScreenShot](/output/points.png)
