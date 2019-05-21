@@ -26,5 +26,5 @@
 4. Note that paths to directories or files has been hardcoded!
 
 ## Overview of Program
-![alt text](https://github.com/mkuczyns/VTK_4D-CT/tree/master/output/points.png)
-![alt text](https://github.com/mkuczyns/VTK_4D-CT/tree/master/output/angle.png)
+![ScreenShot](/output/points.png)
+![alt text](/output/angle.png)
